@@ -176,7 +176,8 @@ done
 # After a symlink-preserving copy, materialize into real files with cycle guards.
 if [[ "$is_windows" -eq 1 ]]; then
   echo "[stage] materializing symlinks for Windows installers (cycle-safe)..."
-  node "$ROOT/scripts/materialize-symlinks.js" "$(win_path "$DEST")"
+  # Pass Windows paths for both script and root — MSYS otherwise turns /d/a into D:\d\a.
+  node "$(win_path "$ROOT/scripts/materialize-symlinks.js")" "$(win_path "$DEST")"
 fi
 
 case "$TARGET" in
