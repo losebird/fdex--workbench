@@ -71,7 +71,7 @@ do
   [[ -f "$H/$c" ]] && ENTRY="$H/$c" && break
 done
 if [[ -z "$ENTRY" ]]; then
-  echo "未找到 dsh 入口，请先在 harness 里 pnpm install && pnpm run build" >&2
+  echo "未找到 dsh 入口，请先在仓库根执行：npm run setup:workbench" >&2
   exit 1
 fi
 
