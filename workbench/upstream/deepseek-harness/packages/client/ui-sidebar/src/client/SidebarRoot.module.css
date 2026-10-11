@@ -18,6 +18,23 @@
   isolation: isolate;
 }
 
+/* Collapsed: host is click-through so nothing in this column (including
+   opacity-0 / fading leftovers) can cover the center. Rail controls opt back in. */
+.clipHostCollapsed {
+  pointer-events: none;
+  overflow: hidden;
+  clip-path: inset(0);
+}
+.clipHostCollapsed .toggle,
+.clipHostCollapsed .regionArea,
+.clipHostCollapsed .footArea {
+  pointer-events: auto;
+}
+.clipHostCollapsed .root.fading .regionArea,
+.clipHostCollapsed .root.fading .footArea {
+  pointer-events: none !important;
+}
+
 .root {
   --dsh-sidebar-inline-padding: 14px;
   display: flex;

@@ -3834,11 +3834,15 @@
 
 /* Project center: compact management dashboard, aligned to the approved reference. */
 .projectCenterOverlay {
+  /* Sit over the center only — never cover the shell sidebar rail.
+     left/width come from inline style (sidebarOffset). */
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
   z-index: 40;
-  width: 100vw !important;
   height: 100dvh;
+  box-sizing: border-box;
 }
 
 .projectCenterBody {

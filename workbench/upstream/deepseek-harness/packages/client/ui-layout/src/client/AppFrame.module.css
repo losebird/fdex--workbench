@@ -37,11 +37,20 @@
 
 .frame[data-sidebar-collapsed] .sidebarCol {
   /* Rail track only — never let overflow or stacking escape the 56px column. */
-  overflow: hidden;
+  overflow: hidden !important;
   max-width: 100%;
-  /* Below center so any escaped hit target loses to main content; the rail
-     itself still receives events inside its 56px box. */
+  clip-path: inset(0);
+  contain: paint;
+  /* Below center so any escaped hit target loses to main content. */
   z-index: 0;
+  /* Entire column is click-through; rail controls opt back in below. */
+  pointer-events: none !important;
+}
+/* Rail controls (expand / settings / lab / search) stay usable when collapsed. */
+.frame[data-sidebar-collapsed] .sidebarCol [data-dsh-sidebar-hit],
+.frame[data-sidebar-collapsed] .sidebarCol button,
+.frame[data-sidebar-collapsed] .sidebarCol a {
+  pointer-events: auto !important;
 }
 
 .frame[data-sidebar-collapsed] .centerCol {
@@ -137,6 +146,14 @@
   z-index: 20;
   pointer-events: none;
 }
+/* Collapsed: never let overlay children paint/hit over the 56px rail. */
+.frame[data-sidebar-collapsed] .overlayLayer {
+  left: 56px;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: auto;
+}
 
 /* Slot catalog: layer is click-through; each overlay child must receive hits.
    Landing (fde-project-progress) and discovery lab live here. Setting children
@@ -145,4 +162,53 @@
    contentWide), not by disabling overlay children. */
 .overlayLayer > * {
   pointer-events: auto;
+}
+
+
+/* Workbench mode (no fde page overlay): ghost shell.overlay hosts must never
+   sit above the conversation and eat clicks after the left rail collapses.
+   Project center / lab set body[data-fde-page] and keep their own stacking. */
+:global(body:not([data-fde-page])) .overlayLayer {
+  z-index: 5;
+  pointer-events: none !important;
+}
+:global(body:not([data-fde-page])) .overlayLayer > * {
+  pointer-events: none !important;
+}
+:global(body:not([data-fde-page])) .frame[data-sidebar-collapsed] .centerCol {
+  position: relative;
+  z-index: 26; /* above data-dsh-panel-host (25) */
+}
+
+
+.collapsedRail {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  padding: 14px 0 10px;
+  pointer-events: none;
+  overflow: hidden;
+  clip-path: inset(0);
+}
+
+.collapsedRailToggle {
+  pointer-events: auto !important;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  color: var(--dsw-alias-label-primary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.collapsedRailToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
 }

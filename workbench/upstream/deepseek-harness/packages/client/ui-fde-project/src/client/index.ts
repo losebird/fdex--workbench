@@ -108,12 +108,18 @@ export function apply(ctx: ClientContext): void {
    * hollow ~396px track and dead hit targets over the center column.
    */
   const activateProjectWorkbenchLayout = (mode: 'enter' | 'ensure' = 'ensure'): void => {
-    if (mode === 'enter') ctx.layout.openSidebar(396)
+    // Remount `ensure` must never reopen the left shell sidebar or synthesize
+    // DOM clicks on toggle clusters — `data-dsh-sidebar-collapsed` is never set
+    // in-tree, so the old click loop always ran and fought user collapse.
+    if (mode === 'ensure') {
+      // Remounts must be layout-silent: no openSidebar, no closeDetails churn.
+      return
+    }
+    ctx.layout.openSidebar(396)
     ctx.layout.closeDetails()
     if (typeof document === 'undefined') return
     let attempts = 0
     const collapseProjectToolPanel = (): void => {
-      if (document.body.hasAttribute('data-dsh-sidebar-collapsed')) return
       const toggles = document.querySelectorAll<HTMLButtonElement>('[data-dsh-toggle-cluster] button')
       const toggle = [...toggles].find(button => button.getBoundingClientRect().left > window.innerWidth / 2)
       if (toggle !== undefined) {

@@ -124,16 +124,17 @@ export function SidebarRoot({
   const fading = collapsed && layoutWide
 
   return (
-    // clipHost is always the AppFrame track width: frozen-width fade content
-    // may paint wider for the slide, but hit-testing cannot escape this box.
-    <div className={css.clipHost}>
+    // clipHost is always the AppFrame track width. When collapsed, the host
+    // itself is pointer-events:none so leftovers cannot steal center hits.
+    <div className={clsx(css.clipHost, collapsed && css.clipHostCollapsed)}>
       <div
         ref={column}
         className={clsx(
           css.root, !layoutWide && css.collapsed, !layoutWide && everWide.current && css.railIn,
           fading && css.fading, !pointerInside && css.quietBars,
         )}
-        style={layoutWide ? { width: collapsed ? lastWideWidth.current : width } : undefined}
+        // Never freeze wider than the live track while collapsing.
+        style={layoutWide ? { width: collapsed ? '100%' : width } : undefined}
         // Do NOT put inert/aria-hidden on this root: either would disable the
         // expand toggle. Hit-stealing is blocked by .fading * + .clipHost.
         onPointerEnter={() => {
@@ -173,6 +174,7 @@ export function SidebarRoot({
             <button
               type="button"
               className={clsx(css.iconButton, css.toggle)}
+              data-dsh-sidebar-hit=""
               aria-label={collapsed ? t('toggle.open') : t('toggle.collapse')}
               onClick={() => { toggleSidebar() }}
             >

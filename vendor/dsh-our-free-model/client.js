@@ -609,7 +609,7 @@ window.__ModuleLoader__.load({
    scrim is therefore fixed to the viewport; the shell sets no transform, filter
    or contain on any ancestor, so nothing re-anchors it. Mask colour, blur and
    z-index mirror the Modal layer of the shell so this reads as first-party. */
-.ofm_scrim{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;background:var(--dsw-alias-bg-mask-1, rgb(0 0 0 / 24%));backdrop-filter:var(--dsw-mask-blur, blur(2px))}
+.ofm_scrim{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;background:var(--dsw-alias-bg-mask-1, rgb(0 0 0 / 24%));backdrop-filter:var(--dsw-mask-blur, blur(2px))}[data-sidebar-collapsed] .ofm_scrim,[data-dsh-sidebar-collapsed] .ofm_scrim{display:none!important;pointer-events:none!important}
 .ofm_ann{width:min(620px,92vw);max-height:min(86vh,640px);border-radius:18px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);box-shadow:0 24px 70px rgb(0 0 0 / 34%);overflow:hidden;display:flex;flex-direction:column}
 .ofm_annhead{padding:18px 22px 12px;display:flex;flex-direction:column;gap:8px;background:linear-gradient(150deg,var(--dsw-alias-bg-layer-3),transparent)}
 .ofm_anntitle{margin:0;font-size:18px;font-weight:700;letter-spacing:-.3px}

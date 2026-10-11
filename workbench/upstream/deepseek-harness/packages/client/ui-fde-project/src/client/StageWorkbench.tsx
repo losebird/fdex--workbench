@@ -1780,6 +1780,7 @@ function BrowsedStagePanel({ props, workspace, sessionId, view, actualStage, vie
   readonly sourceFiles: readonly ProjectSourceItem[]
 }) {
   const [fileError, setFileError] = useState<string | null>(null)
+  const [showAllStageRecords, setShowAllStageRecords] = useState(false)
   const actualIndex = FDE_V2_STAGE_IDS.indexOf(actualStage)
   const viewedIndex = FDE_V2_STAGE_IDS.indexOf(viewedStage)
   const historical = viewedIndex < actualIndex
@@ -1809,6 +1810,25 @@ function BrowsedStagePanel({ props, workspace, sessionId, view, actualStage, vie
     void props.openProjectFile(sessionId, workspace.path, path, artifactTitle).catch((error: unknown) => {
       setFileError(error instanceof Error ? error.message : String(error))
     })
+  }
+  const decisionArtifact = presentArtifacts.find(item => item.id === 'engagement-reframe')
+    ?? presentArtifacts.find(item => item.id === 'requirement-baseline')
+    ?? presentArtifacts.find(item => item.id === 'research-report')
+    ?? presentArtifacts[0]
+  const openDecisionRecord = (): void => {
+    if (decisionArtifact === undefined) {
+      setFileError('暂无已保存的决策记录可打开。')
+      return
+    }
+    openFile(decisionArtifact.path, artifactDisplayTitle(decisionArtifact))
+  }
+  const openAllStageRecords = (): void => {
+    if (presentArtifacts.length === 0) {
+      setFileError('暂无已保存的阶段记录可打开。')
+      return
+    }
+    setShowAllStageRecords(true)
+    setFileError(null)
   }
 
   return <section className={`${css.root} ${css.browsedStage}`} data-stage={viewedStage} data-historical={historical ? 'true' : undefined} data-future={historical ? undefined : 'true'} data-hide-stage-composer="true" data-conversation-composer-layout="stage-history" data-conversation-composer-overlay={view ? '' : undefined} aria-label={`正在查看：${title}`}>
@@ -1883,13 +1903,20 @@ function BrowsedStagePanel({ props, workspace, sessionId, view, actualStage, vie
               {selectedWorkflow !== undefined && viewedStage === 'discovery' && <dl><dt>选定业务流程</dt><dd>{selectedWorkflow.title}</dd></dl>}
               {stageRecommendation !== undefined && <dl><dt>阶段建议</dt><dd>{stageRecommendation}</dd></dl>}
               <dl><dt>待解决问题</dt><dd>{stageBlockers.length === 0 ? '未登记待解决问题' : `${String(stageBlockers.length)} 项`}</dd></dl>
-              <div className={css.historicalDecisionLink}>查看决策记录 <span aria-hidden="true">→</span></div>
+              <button type="button" className={css.historicalDecisionLink} onClick={openDecisionRecord}>查看决策记录 <span aria-hidden="true">→</span></button>
             </section>
           </div>
           <ol className={css.historicalMilestones} data-stage-milestones="" aria-label="阶段工作记录">
             {['接收材料', '梳理业务流程', '核对问题', '记录流程选择', 'FDE 阶段评审'].map(item => <li key={item}><i>✓</i><span>{item}</span></li>)}
           </ol>
-          <footer className={css.historicalArchiveFooter}><span><HistoricalArchiveIcon />当前只读查看已保存的阶段资料；本页不提供编辑操作。</span><strong>查看全部阶段记录</strong></footer>
+          <footer className={css.historicalArchiveFooter}><span><HistoricalArchiveIcon />当前只读查看已保存的阶段资料；本页不提供编辑操作。</span><button type="button" className={css.historicalArchiveAllButton} onClick={openAllStageRecords}>查看全部阶段记录</button></footer>
+          {showAllStageRecords && <div className={css.historicalAllRecords} data-stage-all-records="">
+            <header><strong>本阶段已保存记录</strong><button type="button" onClick={() => { setShowAllStageRecords(false) }}>收起</button></header>
+            <ul>{presentArtifacts.map(artifact => <li key={artifact.id}>
+              <span><strong>{artifactDisplayTitle(artifact)}</strong><small>{artifact.purpose}</small></span>
+              <button type="button" onClick={() => { openFile(artifact.path, artifactDisplayTitle(artifact)) }}>打开</button>
+            </li>)}</ul>
+          </div>}
         </section>
       </>
       : <>
@@ -1952,9 +1979,21 @@ function StageWorkbenchPanel({ props, workspace, sessionId, view }: {
   const [actionError, setActionError] = useState<string | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [reviewMode, setReviewMode] = useState(false)
+  useEffect(() => {
+    if (!reviewMode) {
+      document.body.removeAttribute('data-fde-review-mode')
+      return
+    }
+    document.body.setAttribute('data-fde-review-mode', '')
+    return () => { document.body.removeAttribute('data-fde-review-mode') }
+  }, [reviewMode])
   const [reviewConfirming, setReviewConfirming] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  useEffect(() => {
+    if (reviewError === null) return
+    document.querySelector('[data-stage-review-error]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [reviewError])
   const sessionRunning = props.useSessions(snapshot => (
     snapshot.byId[sessionId as keyof typeof snapshot.byId]?.running ?? false
   ))
@@ -2047,7 +2086,9 @@ function StageWorkbenchPanel({ props, workspace, sessionId, view }: {
     setReviewError(null)
     setReviewSubmitting(true)
     try {
-      await props.completeRequirements(workspace.workspaceId, stageState.value.revision)
+      // V2 eight-stage projects must use completeV2Stage('discovery'); the legacy
+      // completeRequirements entry rejects lifecycleVersion === 2.
+      await props.completeV2Stage(workspace.workspaceId, stageState.value.revision, 'discovery')
       setReviewMode(false)
       setReviewConfirming(false)
     } catch (error: unknown) {
@@ -2255,7 +2296,7 @@ function StageWorkbenchPanel({ props, workspace, sessionId, view }: {
                   <div><strong>确认进入“定义结果、范围与责任”阶段？</strong><small>当前评审对象：{selectedWorkflow?.title ?? '未命名业务流程'}。进入后仍可返回第一阶段补充资料，但本次人工决定会写入项目阶段记录。</small></div>
                   <div><button type="button" className={css.secondaryButton} disabled={reviewSubmitting} onClick={() => { setReviewConfirming(false) }}>返回核对</button><button type="button" className={css.primaryButton} disabled={reviewSubmitting} onClick={() => { void advanceStage() }}>{reviewSubmitting ? '正在提交…' : '确认并进入下一阶段'}</button></div>
                 </div>}
-              {reviewError !== null && <p className={css.inlineError} role="alert">{reviewError}</p>}
+              {reviewError !== null && <p className={css.inlineError} role="alert" data-stage-review-error="">{reviewError}</p>}
             </section>
           </main>
 

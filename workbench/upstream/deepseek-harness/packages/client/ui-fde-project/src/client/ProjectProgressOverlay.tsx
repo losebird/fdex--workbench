@@ -995,8 +995,10 @@ function useSidebarOffset(open: boolean): [RefObject<HTMLDivElement>, number] {
   const [offset, setOffset] = useState(0)
   useLayoutEffect(() => {
     if (!open) return
-    const overlay = ref.current?.parentElement
-    const frame = overlay?.parentElement
+    // shell.overlay may wrap the registrant; climb to the marked overlay layer
+    // then the AppFrame grid — parentElement×2 fails when a slot host sits in between.
+    const overlayLayer = ref.current?.closest('[data-shell-overlay]')
+    const frame = overlayLayer?.parentElement
     const sidebar = frame?.firstElementChild
     if (!(sidebar instanceof HTMLElement)) return
     const update = (): void => { setOffset(Math.round(sidebar.getBoundingClientRect().width)) }
@@ -1012,9 +1014,12 @@ function useStandalonePage(open: boolean, rootRef: RefObject<HTMLDivElement>): v
   useLayoutEffect(() => {
     if (!open) return
     document.body.dataset.fdePage = 'project-progress'
-    const overlayHost = rootRef.current?.parentElement
-    const details = overlayHost?.previousElementSibling
-    const center = details?.previousElementSibling
+    // Slot hosts wrap the overlay; climb to the marked layer then the frame.
+    const overlayLayer = rootRef.current?.closest('[data-shell-overlay]')
+    const frame = overlayLayer?.parentElement
+    const sidebar = frame?.firstElementChild
+    const center = sidebar?.nextElementSibling
+    const details = center?.nextElementSibling
     const hidden = [center, details].filter((item): item is HTMLElement => item instanceof HTMLElement)
     const previous = hidden.map(element => ({
       element,
@@ -3086,7 +3091,7 @@ export function ProjectProgressOverlay({
     <div
       ref={rootRef}
       className={`${css.pageOverlay} ${page.view === 'project' && !v2DetailOpen ? '' : css.projectCenterOverlay}`}
-      style={page.view === 'project' && !v2DetailOpen ? { left: sidebarOffset, width: `calc(100% - ${String(sidebarOffset)}px)` } : undefined}
+      style={{ left: sidebarOffset, width: `calc(100% - ${String(sidebarOffset)}px)` }}
       data-testid="fde-project-progress"
     >
       {detailRow !== undefined && metadataStates[detailRow.workspaceId]?.status === 'error' && <p role="alert" className={css.projectMetadataWarning}>

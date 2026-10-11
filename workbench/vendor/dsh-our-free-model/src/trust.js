@@ -99,7 +99,13 @@ function structuralReason(req) {
     if (authority === null) return `${header}-invalid`
     // The web server speaks plain http on a loopback bind, so an Origin that
     // claims https — or any other scheme — is not this page.
-    if (authority.scheme !== host.scheme || authority.hostname !== host.hostname || authority.port !== host.port) return `${header}-mismatch`
+    // Treat classic loopback aliases as the same machine (localhost ↔ 127.0.0.1 ↔ ::1).
+    // Otherwise a page opened as http://localhost:3080 while some hops use 127.0.0.1
+    // (or the reverse) gets Origin/Referer mismatch → 403, and the settings UI
+    // surfaces a dead backend.
+    const loopback = hostname => LOOPBACK_NAMES.has(hostname)
+    const hostMatch = authority.hostname === host.hostname || (loopback(authority.hostname) && loopback(host.hostname))
+    if (authority.scheme !== host.scheme || !hostMatch || authority.port !== host.port) return `${header}-mismatch`
   }
   return undefined
 }
