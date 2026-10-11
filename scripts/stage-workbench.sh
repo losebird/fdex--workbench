@@ -26,6 +26,8 @@ esac
 [[ "${OS:-}" == "Windows_NT" ]] && is_windows=1
 case "${MSYSTEM:-}" in MINGW*|MSYS*) is_windows=1 ;; esac
 [[ "${FDEX_DEREF_NODE_MODULES:-}" == "1" ]] && is_windows=1
+# Always deref when explicitly staging for Windows (CI matrix target), even if uname is odd.
+[[ "$TARGET" == "win" ]] && is_windows=1
 
 # Copy a symlink-heavy tree via tar. On Windows, -h dumps file contents instead of links.
 tar_copy_modules() {
@@ -63,8 +65,13 @@ done
 
 mkdir -p "$DEST/upstream"
 echo "[stage] copying deepseek-harness (skip root node_modules initially)..."
-(cd "$SRC_REPO/upstream/deepseek-harness" && tar cf - \
-  --exclude=./node_modules \
+# Exclude EVERY node_modules tree here; nested package links are copied later via tar_copy_modules
+# (with -h on Windows). A bare --exclude=./node_modules only skips the harness root and still
+# ships package-level symlink farms that break Windows tar extract.
+_harness_tar_flags=(cf -)
+[[ "$is_windows" -eq 1 ]] && _harness_tar_flags=(cfh -)
+(cd "$SRC_REPO/upstream/deepseek-harness" && tar "${_harness_tar_flags[@]}" \
+  --exclude=node_modules \
   --exclude=./.git \
   --exclude=./coverage \
   --exclude='*.map' \
