@@ -7,6 +7,15 @@ SRC_REPO="${FDEX_SRC_REPO:-$ROOT/workbench-src}"
 VENDOR="${FDEX_VENDOR:-$ROOT/vendor}"
 DEST="$ROOT/staging/workbench"
 
+# GitHub Actions passes github.workspace as D:\... while bash pwd is /d/....
+# Normalize early so prefix-stripping and Node fs paths stay consistent.
+if command -v cygpath >/dev/null 2>&1; then
+  ROOT="$(cygpath -u "$ROOT")"
+  SRC_REPO="$(cygpath -u "$SRC_REPO")"
+  VENDOR="$(cygpath -u "$VENDOR")"
+  DEST="$ROOT/staging/workbench"
+fi
+
 echo "[stage] target=$TARGET"
 echo "[stage] src=$SRC_REPO"
 echo "[stage] dest=$DEST"
@@ -39,6 +48,14 @@ fi
 
 # Copy a directory tree. Prefer Node fs.cpSync(verbatimSymlinks) on Windows so
 # pnpm links are recreated as real symlinks without following cycles.
+win_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 copy_tree() {
   local src_dir="$1"
   local dest_dir="$2"
@@ -46,11 +63,8 @@ copy_tree() {
   if [[ "$is_windows" -eq 1 ]]; then
     node -e '
 const fs = require("fs");
-const path = require("path");
-const src = process.argv[1];
-const dest = process.argv[2];
-fs.cpSync(src, dest, { recursive: true, verbatimSymlinks: true, force: true });
-' "$src_dir" "$dest_dir"
+fs.cpSync(process.argv[1], process.argv[2], { recursive: true, verbatimSymlinks: true, force: true });
+' "$(win_path "$src_dir")" "$(win_path "$dest_dir")"
   else
     cp -a "$src_dir" "$dest_dir"
   fi
@@ -62,13 +76,11 @@ copy_tree_contents() {
   local dest_dir="$2"
   mkdir -p "$dest_dir"
   if [[ "$is_windows" -eq 1 ]]; then
-    # Copy into dest: node cpSync of src to dest replaces dest as the folder itself,
-    # which is what we want when dest should become a clone of src.
     rm -rf "$dest_dir"
     node -e '
 const fs = require("fs");
 fs.cpSync(process.argv[1], process.argv[2], { recursive: true, verbatimSymlinks: true, force: true });
-' "$src_dir" "$dest_dir"
+' "$(win_path "$src_dir")" "$(win_path "$dest_dir")"
   else
     mkdir -p "$dest_dir"
     (cd "$src_dir" && tar cf - .) | (cd "$dest_dir" && tar xf -)
@@ -117,13 +129,15 @@ fi
 echo "[stage] syncing nested node_modules dirs..."
 H0="$SRC_REPO/upstream/deepseek-harness"
 H="$DEST/upstream/deepseek-harness"
-find "$H0" -type d -name node_modules ! -path '*/node_modules/*' ! -path "$H0/node_modules" -print0 |
-while IFS= read -r -d '' d; do
-  rel="${d#$H0/}"
+# Use relative paths from inside H0 — absolute Windows paths break ${d#$H0/} stripping
+# and Node then joins D:\ into an already-rooted dest (ENOPROTOOPT / bad path).
+(cd "$H0" && find . -type d -name node_modules ! -path '*/node_modules/*' ! -path './node_modules' -print0) |
+while IFS= read -r -d '' rel; do
+  rel="${rel#./}"
   dest="$H/$rel"
   if [[ ! -d "$dest" ]]; then
     mkdir -p "$(dirname "$dest")"
-    copy_tree_contents "$d" "$dest"
+    copy_tree_contents "$H0/$rel" "$dest"
   fi
 done
 
