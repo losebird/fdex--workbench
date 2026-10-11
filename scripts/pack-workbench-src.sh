@@ -15,8 +15,6 @@ if [[ ! -d "$SRC_REPO/upstream/deepseek-harness" ]]; then
   exit 1
 fi
 
-mkdir -p "$STAGING/workbench"
-# Copy without node_modules and runtime
 rsync -a \
   --exclude 'node_modules' \
   --exclude '.git' \
@@ -25,7 +23,6 @@ rsync -a \
   --exclude '*.map' \
   "$SRC_REPO/" "$STAGING/"
 
-# Ensure portable openapi override placeholder
 WS="$STAGING/upstream/deepseek-harness/pnpm-workspace.yaml"
 if [[ -f "$WS" ]]; then
   python3 - <<PY
@@ -41,22 +38,17 @@ p.write_text(''.join(lines))
 PY
 fi
 
-# Note file
 cat > "$STAGING/PACKAGING.md" <<'NOTE'
 This archive is source-only (no node_modules, no .runtime).
+Root layout: upstream/deepseek-harness, frontend/, …
 CI runs pnpm install + build. Lab imported assets are NOT included.
-See NOTICE.md in the desktop installer repo: prefer a private GitHub repository.
+Prefer a private GitHub repository — see NOTICE.md.
 NOTE
 
 mkdir -p "$(dirname "$OUT")"
-if command -v zstd >/dev/null; then
-  tar -C "$STAGING" -cf - . | zstd -T0 -19 -o "$OUT"
-else
-  OUT_GZ="${OUT%.zst}.tar.gz"
-  tar -C "$STAGING" -czf "$OUT_GZ" .
-  OUT="$OUT_GZ"
-fi
-
+tar -C "$STAGING" -cf - . | zstd -f -T0 -19 -o "$OUT"
 ls -lh "$OUT"
+# sanity
+zstd -dc "$OUT" | tar -tf - | head -5
+test -n "$(zstd -dc "$OUT" | tar -tf - | grep '^\\./upstream/deepseek-harness/package.json$' || zstd -dc "$OUT" | tar -tf - | grep 'upstream/deepseek-harness/package.json' | head -1)"
 echo "[pack] done: $OUT"
-echo "[pack] Reminder: uploading course/lab-related source to a PUBLIC repo may need private visibility."
