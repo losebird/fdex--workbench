@@ -113,6 +113,8 @@ echo "[stage] copying deepseek-harness (exclude ALL node_modules)..."
   --exclude=node_modules \
   --exclude=./.git \
   --exclude=./coverage \
+  --exclude=./website \
+  --exclude=./docs \
   --exclude='*.map' \
   .) | (mkdir -p "$DEST/upstream/deepseek-harness" && cd "$DEST/upstream/deepseek-harness" && tar xf -)
 
@@ -131,7 +133,7 @@ H0="$SRC_REPO/upstream/deepseek-harness"
 H="$DEST/upstream/deepseek-harness"
 # Use relative paths from inside H0 — absolute Windows paths break ${d#$H0/} stripping
 # and Node then joins D:\ into an already-rooted dest (ENOPROTOOPT / bad path).
-(cd "$H0" && find . -type d -name node_modules ! -path '*/node_modules/*' ! -path './node_modules' -print0) |
+(cd "$H0" && find . -type d -name node_modules ! -path '*/node_modules/*' ! -path './node_modules' ! -path './website/*' ! -path './docs/*' -print0) |
 while IFS= read -r -d '' rel; do
   rel="${rel#./}"
   dest="$H/$rel"
@@ -169,6 +171,13 @@ for t in "${BRAND_TARGETS[@]}"; do
   mkdir -p "$t"
   cp -f "$ROOT/resources/brand/logo.svg" "$t/fde-x-logo.svg" 2>/dev/null || true
 done
+
+# WiX MSI cannot package pnpm symlinks (LGHT0103 missing link targets).
+# After a symlink-preserving copy, materialize into real files with cycle guards.
+if [[ "$is_windows" -eq 1 ]]; then
+  echo "[stage] materializing symlinks for Windows installers (cycle-safe)..."
+  node "$ROOT/scripts/materialize-symlinks.js" "$(win_path "$DEST")"
+fi
 
 case "$TARGET" in
   linux) echo "[stage] OK for Linux: native .node modules match this box." ;;
