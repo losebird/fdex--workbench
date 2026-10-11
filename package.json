@@ -1,0 +1,144 @@
+{
+  "name": "fde-x-workbench",
+  "productName": "FDE-X 交付工作台",
+  "version": "0.1.0",
+  "description": "FDE-X Delivery Workbench desktop app (DeepSeek Harness 0.1.1-rc.2 + FDE plugins)",
+  "author": {
+    "name": "Ace",
+    "email": "ace@fde-x.local"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "stage": "bash scripts/stage-workbench.sh",
+    "fetch-node": "bash scripts/fetch-node.sh",
+    "prepare:linux": "bash scripts/stage-workbench.sh linux && bash scripts/fetch-node.sh linux-x64 active",
+    "prepare:win": "bash scripts/stage-workbench.sh win && bash scripts/fetch-node.sh win-x64 active",
+    "prepare:mac": "bash scripts/stage-workbench.sh mac && bash scripts/fetch-node.sh darwin-arm64 active",
+    "dist:linux": "npm run prepare:linux && electron-builder --linux AppImage deb",
+    "dist:win": "npm run prepare:win && electron-builder --win nsis msi --x64",
+    "dist:mac": "npm run prepare:mac && electron-builder --mac dmg zip --x64 --arm64",
+    "dist:dir": "npm run prepare:linux && electron-builder --linux --dir",
+    "pack": "electron-builder --dir",
+    "ci:fetch": "bash scripts/ci-fetch-workbench.sh",
+    "ci:build-workbench": "bash scripts/ci-build-workbench.sh",
+    "dist:win:ci": "npm run prepare:win && electron-builder --win nsis msi --x64",
+    "dist:mac:ci": "npm run prepare:mac && electron-builder --mac dmg zip --arm64"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.fde-x.workbench",
+    "productName": "FDE-X Workbench",
+    "copyright": "Copyright © Ace",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "staging/workbench",
+        "to": "workbench",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "staging/node",
+        "to": "node",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/brand",
+        "to": "brand",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "icon": "build/icon.png",
+      "artifactName": "FDE-X-Workbench-${version}-${arch}.${ext}",
+      "maintainer": "Ace <ace@fde-x.local>"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "msi",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "FDE-X-Workbench-${version}-${arch}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "FDE-X Workbench"
+    },
+    "msi": {
+      "oneClick": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "FDE-X Workbench"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png",
+      "artifactName": "FDE-X-Workbench-${version}-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "asar": true,
+    "npmRebuild": false,
+    "forceCodeSigning": false
+  },
+  "homepage": "https://github.com/losebird/fdex--workbench",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/losebird/fdex--workbench.git"
+  }
+}
