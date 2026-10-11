@@ -3,17 +3,21 @@
  * Seed vendor plugins into DSH_HOME (same idea as Electron fixupDshHome).
  * Idempotent — safe to run on every start. No pnpm required.
  *
- * Default: dsh-our-free-model + dsh-openapi.
- * dsh-openapi needs peer deps (@deepseek-ai/schemastery, cordis, dsh-tools)
- * and runtime dep yaml — we symlink peers from the harness tree and ensure
- * yaml is present under the plugin's node_modules (like the packaged app).
+ * Default: only dsh-our-free-model.
  *
- * Opt out: SEED_OPENAPI=0 (unseeds openapi so boot skips it).
+ * Do NOT seed dsh-openapi by default. FDE already registers OpenAPI tools
+ * (openapi_list, etc.) via @deepseek-ai/dsh-fde-project. Loading vendor
+ * dsh-openapi on top duplicates those tool names and crashes boot with:
+ *   tool "openapi_list" is already registered
+ *
+ * On every start we auto-unseed dsh-openapi from the web profile (unless
+ * SEED_OPENAPI=1) so a previous bad seed self-heals.
  *
  * Env:
  *   FDE_REPO_ROOT  workbench root (has vendor/ + upstream/)
  *   DSH_HOME       defaults to $FDE_REPO_ROOT/.runtime/dsh-home
- *   SEED_OPENAPI   default on; set 0/false/no to skip / unseed openapi
+ *   SEED_OPENAPI   set to 1/true/yes to force-seed dsh-openapi (advanced;
+ *                  will conflict with fde-project OpenAPI tools)
  */
 'use strict';
 
@@ -29,8 +33,9 @@ if (!ROOT) {
 
 const DSH_HOME = process.env.DSH_HOME || path.join(ROOT, '.runtime', 'dsh-home');
 const HARNESS = path.join(ROOT, 'upstream', 'deepseek-harness');
-// Default ON — only opt out with 0/false/no/off
-const SEED_OPENAPI = !/^(0|false|no|off)$/i.test(String(process.env.SEED_OPENAPI ?? '1'));
+// Default OFF — FDE fde-project already provides OpenAPI tools; seeding
+// vendor dsh-openapi duplicates openapi_list and crashes boot.
+const SEED_OPENAPI = /^(1|true|yes)$/i.test(String(process.env.SEED_OPENAPI || ''));
 const DEFAULT_PLUGINS = ['dsh-our-free-model'];
 const WEB_BUNDLES = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'];
 
@@ -333,8 +338,10 @@ function main() {
   if (SEED_OPENAPI) {
     seedPlugin('dsh-openapi', pkg, { withOpenapiDeps: true });
   } else {
+    // Always strip leftover openapi so boot does not hit
+    // "tool openapi_list is already registered" vs fde-project.
     unseedPlugin('dsh-openapi', pkg);
-    console.log('seed-plugins: SEED_OPENAPI=0 — openapi not seeded');
+    console.log('seed-plugins: dsh-openapi not seeded (FDE OpenAPI via fde-project; set SEED_OPENAPI=1 only if you know you need the vendor plugin)');
   }
 
   fs.writeFileSync(webPkgPath, JSON.stringify(pkg, null, 2) + '\n');

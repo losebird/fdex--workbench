@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Seed vendor plugins into DSH_HOME (idempotent). Called from start / setup.
-# Default: dsh-our-free-model + dsh-openapi (peers/deps linked from harness,
-# yaml via harness node_modules or npm install into the plugin).
-# Opt out of openapi: SEED_OPENAPI=0
+# Default: dsh-our-free-model only. Auto-unseeds dsh-openapi (conflicts with
+# fde-project OpenAPI tools — duplicate openapi_list). Opt in: SEED_OPENAPI=1
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

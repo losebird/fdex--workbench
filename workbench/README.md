@@ -28,7 +28,7 @@ npm run start:workbench   # 起 dsh web 并打开浏览器
 
 ## 插件
 
-- 启动自动挂载：`dsh-our-free-model`、`dsh-openapi`
-- OpenAPI 会从 harness 链上 peer（schemastery / cordis / dsh-tools）并补齐 `yaml`，对齐打包环境
-- 不要 OpenAPI：`SEED_OPENAPI=0 npm run start:workbench`
+- 启动自动挂载：`dsh-our-free-model`
+- **不要**再挂 `dsh-openapi`：FDE 的 `fde-project` 已提供 OpenAPI 工具（`openapi_list` 等）。外挂会重复注册并导致启动失败（`tool "openapi_list" is already registered`）。脚本默认会卸掉已挂过的 `dsh-openapi`。
+- 高级强制挂载（一般不要）：`SEED_OPENAPI=1 npm run start:workbench`
 

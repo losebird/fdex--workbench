@@ -30,17 +30,30 @@ npm run start:workbench   # 之后每次：起服务并打开浏览器
 默认地址：`http://127.0.0.1:3080`  
 改端口：`FDEX_PORT=3081 npm run start:workbench`  
 `DSH_HOME` 默认在 `workbench/.runtime/dsh-home`，**不会动你全局其它 dsh 安装**。
-`npm run start:workbench` 会自动把 `vendor/dsh-our-free-model` 和 `vendor/dsh-openapi` 挂进 `DSH_HOME`（幂等，无需 pnpm）。
+`npm run start:workbench` 会自动把 `vendor/dsh-our-free-model` 挂进 `DSH_HOME`（幂等，无需 pnpm）。
 
-**`dsh-openapi` 默认自动挂载**（与打包环境一致）：脚本从 `workbench/upstream/deepseek-harness` 把 peer（`@deepseek-ai/schemastery` / `cordis` / `dsh-tools`）链进插件的 `node_modules`，并确保 `yaml` 可用。请先跑过 `npm run setup:workbench`（harness 装好后 peer 才找得到）。
+### OpenAPI 工具：别再挂 `dsh-openapi`
 
-不想要 OpenAPI：
+FDE 的 **`@deepseek-ai/dsh-fde-project`（fde-project）已经内置 OpenAPI 工具**（如 `openapi_list` 等）。  
+再挂外部 `vendor/dsh-openapi` 会**重复注册同名工具**，服务秒退，日志类似：
 
-```bash
-SEED_OPENAPI=0 npm run start:workbench
+```text
+tool "openapi_list" is already registered
 ```
 
-若仍见旧版缺 peer 导致秒退：`git pull` 后再 `npm run start:workbench`（新脚本会重链 peer）。
+因此：
+
+- **默认不 seed `dsh-openapi`**
+- 每次启动若发现旧挂载，会**自动卸掉**（自愈）
+- 日常用工作台里的 OpenAPI / API 文档能力即可，无需外挂插件
+
+高级用途才需要强制挂 vendor 插件（会与 fde-project 冲突，一般不要）：
+
+```bash
+SEED_OPENAPI=1 npm run start:workbench
+```
+
+若你本地曾误挂过 openapi、服务仍秒退：`git pull` 后再 `npm run start:workbench`（脚本会 unseed）。
 
 ### 网络 / 镜像说明
 
@@ -79,7 +92,7 @@ workbench/                 # 工作台源码（git 可见）
 scripts/
   setup-workbench.sh       # npm run setup:workbench（npx pnpm@11.7.0）
   start-workbench.sh       # npm run start:workbench（仅 node）
-  seed-plugins.sh         # 挂 free-model + openapi（peer 从 harness 链）
+  seed-plugins.sh         # 挂 free-model；默认卸掉会冲突的 dsh-openapi
 src/                       # Electron 壳（可选）
 ```
 
