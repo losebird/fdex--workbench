@@ -30,33 +30,17 @@ npm run start:workbench   # 之后每次：起服务并打开浏览器
 默认地址：`http://127.0.0.1:3080`  
 改端口：`FDEX_PORT=3081 npm run start:workbench`  
 `DSH_HOME` 默认在 `workbench/.runtime/dsh-home`，**不会动你全局其它 dsh 安装**。
-`npm run start:workbench` 会自动把 `vendor/dsh-our-free-model` 挂进 `DSH_HOME`（幂等，无需 pnpm）。
+`npm run start:workbench` 会自动把 `vendor/dsh-our-free-model` 和 `vendor/dsh-openapi` 挂进 `DSH_HOME`（幂等，无需 pnpm）。
 
-**`dsh-openapi` 默认不自动挂载。** 它依赖 `@deepseek-ai/schemastery` 等 peer；直接拷进 `bundled-plugins` 会缺包、服务秒退。启动脚本若发现已挂过的坏 openapi，会自动卸掉以恢复启动。
+**`dsh-openapi` 默认自动挂载**（与打包环境一致）：脚本从 `workbench/upstream/deepseek-harness` 把 peer（`@deepseek-ai/schemastery` / `cordis` / `dsh-tools`）链进插件的 `node_modules`，并确保 `yaml` 可用。请先跑过 `npm run setup:workbench`（harness 装好后 peer 才找得到）。
 
-可选安装 OpenAPI（会从 harness 链上 peer）：
-
-```bash
-SEED_OPENAPI=1 npm run start:workbench
-# 或手动（在 harness 目录，保证解析到 peer）：
-cd workbench/upstream/deepseek-harness
-export DSH_HOME="$(cd ../.. && pwd)/.runtime/dsh-home"
-# 先链 peer 再 add，或用 SEED_OPENAPI=1
-node apps/cli/lib/bin.js plugin --profile web add "$(cd ../.. && pwd)/vendor/dsh-openapi"
-```
-
-若服务秒退且日志里有 `Cannot find package '@deepseek-ai/schemastery'`（旧版误 seed 了 openapi）：
+不想要 OpenAPI：
 
 ```bash
-cd fdex--workbench
-git pull
-DSH="$PWD/workbench/.runtime/dsh-home"
-rm -rf "$DSH/bundled-plugins/dsh-openapi"
-rm -f "$DSH/profiles/web/node_modules/dsh-openapi"
-# 从 profiles/web/package.json 的 dependencies / dsh.profile.bundles 里删掉 dsh-openapi
-# （或直接再跑一次 start：新脚本会自动 unseed）
-npm run start:workbench
+SEED_OPENAPI=0 npm run start:workbench
 ```
+
+若仍见旧版缺 peer 导致秒退：`git pull` 后再 `npm run start:workbench`（新脚本会重链 peer）。
 
 ### 网络 / 镜像说明
 
@@ -95,7 +79,7 @@ workbench/                 # 工作台源码（git 可见）
 scripts/
   setup-workbench.sh       # npm run setup:workbench（npx pnpm@11.7.0）
   start-workbench.sh       # npm run start:workbench（仅 node）
-  seed-plugins.sh         # 挂 vendor/dsh-our-free-model 到 DSH_HOME
+  seed-plugins.sh         # 挂 free-model + openapi（peer 从 harness 链）
 src/                       # Electron 壳（可选）
 ```
 

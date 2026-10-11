@@ -3,23 +3,23 @@
  * Seed vendor plugins into DSH_HOME (same idea as Electron fixupDshHome).
  * Idempotent — safe to run on every start. No pnpm required.
  *
- * Default: only dsh-our-free-model (matches Electron).
- * dsh-openapi needs peer deps (@deepseek-ai/schemastery etc.) and will crash
- * boot if copied into bundled-plugins without them — so it is NOT seeded by
- * default. Set SEED_OPENAPI=1 to install it with peer symlinks from harness.
+ * Default: dsh-our-free-model + dsh-openapi.
+ * dsh-openapi needs peer deps (@deepseek-ai/schemastery, cordis, dsh-tools)
+ * and runtime dep yaml — we symlink peers from the harness tree and ensure
+ * yaml is present under the plugin's node_modules (like the packaged app).
  *
- * Also removes a previously seeded dsh-openapi from the web profile so a
- * broken install self-heals on the next start (unless SEED_OPENAPI=1).
+ * Opt out: SEED_OPENAPI=0 (unseeds openapi so boot skips it).
  *
  * Env:
  *   FDE_REPO_ROOT  workbench root (has vendor/ + upstream/)
  *   DSH_HOME       defaults to $FDE_REPO_ROOT/.runtime/dsh-home
- *   SEED_OPENAPI   set to 1 to also seed dsh-openapi with peer links
+ *   SEED_OPENAPI   default on; set 0/false/no to skip / unseed openapi
  */
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const ROOT = process.env.FDE_REPO_ROOT;
 if (!ROOT) {
@@ -29,7 +29,8 @@ if (!ROOT) {
 
 const DSH_HOME = process.env.DSH_HOME || path.join(ROOT, '.runtime', 'dsh-home');
 const HARNESS = path.join(ROOT, 'upstream', 'deepseek-harness');
-const SEED_OPENAPI = /^(1|true|yes)$/i.test(String(process.env.SEED_OPENAPI || ''));
+// Default ON — only opt out with 0/false/no/off
+const SEED_OPENAPI = !/^(0|false|no|off)$/i.test(String(process.env.SEED_OPENAPI ?? '1'));
 const DEFAULT_PLUGINS = ['dsh-our-free-model'];
 const WEB_BUNDLES = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'];
 
@@ -73,51 +74,139 @@ function copyDir(src, dest) {
 }
 
 function ensureSymlink(linkPath, target) {
+  const absTarget = path.resolve(target);
   fs.mkdirSync(path.dirname(linkPath), { recursive: true });
   try {
     const st = fs.lstatSync(linkPath);
-    if (st.isSymbolicLink() && fs.readlinkSync(linkPath) === target) return;
+    if (st.isSymbolicLink()) {
+      let cur = fs.readlinkSync(linkPath);
+      if (!path.isAbsolute(cur)) cur = path.resolve(path.dirname(linkPath), cur);
+      if (cur === absTarget) return;
+    }
     fs.rmSync(linkPath, { recursive: true, force: true });
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
   }
   try {
-    fs.symlinkSync(target, linkPath);
+    fs.symlinkSync(absTarget, linkPath);
   } catch (e) {
     if (process.platform === 'win32') {
       try {
-        fs.symlinkSync(target, linkPath, 'junction');
+        fs.symlinkSync(absTarget, linkPath, 'junction');
         return;
       } catch (_) {}
     }
     console.warn(`seed-plugins: symlink failed (${e.message}); copying instead`);
-    copyDir(target, linkPath);
+    copyDir(absTarget, linkPath);
   }
+}
+
+function packageJsonAt(dir) {
+  return fs.existsSync(path.join(dir, 'package.json'));
+}
+
+function resolveInHarnessNodeModules(pkgName) {
+  const parts = pkgName.split('/');
+  const direct = path.join(HARNESS, 'node_modules', ...parts);
+  if (packageJsonAt(direct)) return direct;
+
+  // pnpm layout: node_modules/.pnpm/<name>@*/node_modules/<name>
+  const pnpmRoot = path.join(HARNESS, 'node_modules', '.pnpm');
+  if (!fs.existsSync(pnpmRoot)) return null;
+  const needle = parts[parts.length - 1];
+  let entries;
+  try {
+    entries = fs.readdirSync(pnpmRoot);
+  } catch {
+    return null;
+  }
+  const prefix = pkgName.startsWith('@')
+    ? `${parts[0]}+${parts[1]}@`
+    : `${pkgName}@`;
+  // Also match folder names like yaml@2.8.1
+  for (const ent of entries) {
+    if (!ent.startsWith(prefix) && !(ent.startsWith(`${needle}@`) && !pkgName.startsWith('@'))) {
+      continue;
+    }
+    const cand = path.join(pnpmRoot, ent, 'node_modules', ...parts);
+    if (packageJsonAt(cand)) return cand;
+  }
+  // slower fallback scan
+  for (const ent of entries) {
+    const cand = path.join(pnpmRoot, ent, 'node_modules', ...parts);
+    if (packageJsonAt(cand)) return cand;
+  }
+  return null;
 }
 
 function resolvePeer(relCandidates) {
   for (const rel of relCandidates) {
     const abs = path.join(HARNESS, rel);
-    if (fs.existsSync(path.join(abs, 'package.json'))) return abs;
+    if (packageJsonAt(abs)) return abs;
   }
   return null;
 }
 
-function linkOpenapiPeers(localPlugin) {
+function resolvePackage(name, relCandidates = []) {
+  const fromCand = resolvePeer(relCandidates);
+  if (fromCand) return fromCand;
+  return resolveInHarnessNodeModules(name);
+}
+
+function linkNamedPackage(localPlugin, name, target) {
+  const linkPath = path.join(localPlugin, 'node_modules', ...name.split('/'));
+  ensureSymlink(linkPath, target);
+  console.log(`seed-plugins: linked ${name} → ${target}`);
+}
+
+function ensureNpmDep(localPlugin, name, versionRange) {
+  const existing = path.join(localPlugin, 'node_modules', ...name.split('/'));
+  if (packageJsonAt(existing)) return true;
+
+  const fromHarness = resolveInHarnessNodeModules(name);
+  if (fromHarness) {
+    linkNamedPackage(localPlugin, name, fromHarness);
+    return true;
+  }
+
+  // Last resort: npm install into the plugin (Ace has npm; no pnpm needed).
+  const spec = versionRange ? `${name}@${versionRange}` : name;
+  const registry =
+    process.env.NPM_CONFIG_REGISTRY ||
+    process.env.npm_config_registry ||
+    'https://registry.npmmirror.com';
+  console.log(`seed-plugins: npm install ${spec} into plugin (registry=${registry})`);
+  const r = spawnSync(
+    'npm',
+    ['install', spec, '--omit=dev', '--no-package-lock', '--no-save', '--registry', registry],
+    { cwd: localPlugin, encoding: 'utf8', env: { ...process.env, npm_config_registry: registry } },
+  );
+  if (r.status !== 0) {
+    console.warn(`seed-plugins: npm install ${spec} failed: ${(r.stderr || r.stdout || '').slice(0, 400)}`);
+    return false;
+  }
+  return packageJsonAt(existing);
+}
+
+function linkOpenapiDeps(localPlugin) {
+  const missing = [];
+
+  // Install yaml FIRST — npm install rewrites node_modules and would wipe peer symlinks.
+  const yamlOk = ensureNpmDep(localPlugin, 'yaml', '^2.8.1');
+  if (!yamlOk) missing.push('yaml');
+
+  // Then link peers from harness (must survive after any npm install).
   for (const peer of OPENAPI_PEERS) {
-    let target = resolvePeer(peer.candidates);
+    const target = resolvePackage(peer.name, peer.candidates);
     if (!target) {
-      const nm = path.join(HARNESS, 'node_modules', ...peer.name.split('/'));
-      if (fs.existsSync(path.join(nm, 'package.json'))) target = nm;
-    }
-    if (!target) {
+      missing.push(peer.name);
       console.warn(`seed-plugins: peer missing for openapi: ${peer.name}`);
       continue;
     }
-    const linkPath = path.join(localPlugin, 'node_modules', ...peer.name.split('/'));
-    ensureSymlink(linkPath, target);
-    console.log(`seed-plugins: linked peer ${peer.name} → ${target}`);
+    linkNamedPackage(localPlugin, peer.name, target);
   }
+
+  return missing;
 }
 
 function unseedPlugin(pluginName, pkg) {
@@ -136,7 +225,7 @@ function unseedPlugin(pluginName, pkg) {
   if (fs.existsSync(localPlugin)) {
     fs.rmSync(localPlugin, { recursive: true, force: true });
     changed = true;
-    console.log(`seed-plugins: removed broken ${localPlugin}`);
+    console.log(`seed-plugins: removed ${localPlugin}`);
   }
 
   const webLink = path.join(DSH_HOME, 'profiles', 'web', 'node_modules', pluginName);
@@ -150,27 +239,48 @@ function unseedPlugin(pluginName, pkg) {
   }
 
   if (changed) {
-    console.log(`seed-plugins: unseeded ${pluginName} from web profile (was breaking boot without peers)`);
+    console.log(`seed-plugins: unseeded ${pluginName} from web profile`);
   }
   return changed;
 }
 
-function seedPlugin(pluginName, pkg, { withOpenapiPeers = false } = {}) {
+function seedPlugin(pluginName, pkg, { withOpenapiDeps = false } = {}) {
   const vendorPlugin = path.join(ROOT, 'vendor', pluginName);
-  if (!fs.existsSync(path.join(vendorPlugin, 'package.json'))) {
+  if (!packageJsonAt(vendorPlugin)) {
     console.warn(`seed-plugins: skip — missing ${vendorPlugin}`);
     return false;
   }
 
   const localPlugin = path.join(DSH_HOME, 'bundled-plugins', pluginName);
   fs.mkdirSync(path.dirname(localPlugin), { recursive: true });
-  if (!fs.existsSync(path.join(localPlugin, 'package.json'))) {
-    copyDir(vendorPlugin, localPlugin);
-    console.log(`seed-plugins: copied ${pluginName} → ${localPlugin}`);
+  // Refresh plugin sources (keep node_modules we manage for deps)
+  const keptNm = path.join(localPlugin, 'node_modules');
+  const nmBackup = path.join(DSH_HOME, '.seed-nm-backup', pluginName);
+  if (fs.existsSync(keptNm)) {
+    fs.mkdirSync(path.dirname(nmBackup), { recursive: true });
+    fs.rmSync(nmBackup, { recursive: true, force: true });
+    fs.renameSync(keptNm, nmBackup);
   }
+  fs.rmSync(localPlugin, { recursive: true, force: true });
+  copyDir(vendorPlugin, localPlugin);
+  if (fs.existsSync(nmBackup)) {
+    fs.renameSync(nmBackup, keptNm);
+  }
+  console.log(`seed-plugins: synced ${pluginName} → ${localPlugin}`);
 
-  if (withOpenapiPeers) {
-    linkOpenapiPeers(localPlugin);
+  if (withOpenapiDeps) {
+    const missing = linkOpenapiDeps(localPlugin);
+    // schemastery is fatal for boot — do not leave a half-seeded openapi
+    if (missing.includes('@deepseek-ai/schemastery')) {
+      console.error(
+        'seed-plugins: cannot seed dsh-openapi — @deepseek-ai/schemastery not found under harness. Run npm run setup:workbench first, or SEED_OPENAPI=0 to skip.',
+      );
+      unseedPlugin(pluginName, pkg);
+      return false;
+    }
+    if (missing.length) {
+      console.warn(`seed-plugins: openapi seeded with missing deps: ${missing.join(', ')} (boot may still fail)`);
+    }
   }
 
   pkg.dependencies = pkg.dependencies || {};
@@ -216,17 +326,15 @@ function main() {
     if (!pkg.dsh.profile.bundles.includes(b)) pkg.dsh.profile.bundles.push(b);
   }
 
-  // Heal: drop openapi unless explicitly requested (missing schemastery peers crash boot).
-  if (!SEED_OPENAPI) {
-    unseedPlugin('dsh-openapi', pkg);
-  }
-
   for (const name of DEFAULT_PLUGINS) {
     seedPlugin(name, pkg);
   }
 
   if (SEED_OPENAPI) {
-    seedPlugin('dsh-openapi', pkg, { withOpenapiPeers: true });
+    seedPlugin('dsh-openapi', pkg, { withOpenapiDeps: true });
+  } else {
+    unseedPlugin('dsh-openapi', pkg);
+    console.log('seed-plugins: SEED_OPENAPI=0 — openapi not seeded');
   }
 
   fs.writeFileSync(webPkgPath, JSON.stringify(pkg, null, 2) + '\n');

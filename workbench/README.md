@@ -28,7 +28,7 @@ npm run start:workbench   # 起 dsh web 并打开浏览器
 
 ## 插件
 
-- 启动自动挂载：`dsh-our-free-model`
-- `dsh-openapi` **默认不挂**（缺 `@deepseek-ai/schemastery` 会让服务秒退）。需要时：`SEED_OPENAPI=1 npm run start:workbench`（仓库根目录）
-- 若曾误挂过 openapi：再跑 `start:workbench` 会自动卸掉；或手动删 ` .runtime/dsh-home/bundled-plugins/dsh-openapi`
+- 启动自动挂载：`dsh-our-free-model`、`dsh-openapi`
+- OpenAPI 会从 harness 链上 peer（schemastery / cordis / dsh-tools）并补齐 `yaml`，对齐打包环境
+- 不要 OpenAPI：`SEED_OPENAPI=0 npm run start:workbench`
 
