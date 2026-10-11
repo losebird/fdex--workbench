@@ -16,27 +16,61 @@ if [[ ! -d "$SRC_REPO/upstream/deepseek-harness" ]]; then
   exit 1
 fi
 
-# pnpm stores packages as a symlink farm. Creating those symlinks on Windows
-# GitHub runners fails without Developer Mode / SeCreateSymbolicLinkPrivilege.
-# Dereference into real files when staging on Windows (or when forced).
+# pnpm node_modules is a symlink farm, often with cycles (e.g. cordis <-> include).
+# NEVER tar -h / dereference that tree — it explodes into "File name too long".
+# On Windows, MSYS tar also fails creating *dangling* symlinks. Fix = copy with a
+# tool that can create native symlinks, and only after symlink targets exist:
+#   1) harness tree with ALL node_modules excluded
+#   2) root node_modules (contains .pnpm store)
+#   3) nested package node_modules (links into root .pnpm)
 is_windows=0
 case "$(uname -s 2>/dev/null || true)" in
   MINGW*|MSYS*|CYGWIN*|Windows_NT) is_windows=1 ;;
 esac
 [[ "${OS:-}" == "Windows_NT" ]] && is_windows=1
 case "${MSYSTEM:-}" in MINGW*|MSYS*) is_windows=1 ;; esac
-[[ "${FDEX_DEREF_NODE_MODULES:-}" == "1" ]] && is_windows=1
-# Always deref when explicitly staging for Windows (CI matrix target), even if uname is odd.
 [[ "$TARGET" == "win" ]] && is_windows=1
 
-# Copy a symlink-heavy tree via tar. On Windows, -h dumps file contents instead of links.
-tar_copy_modules() {
+# Prefer native Windows symlinks from MSYS tools when we fall back to cp/tar.
+if [[ "$is_windows" -eq 1 ]]; then
+  export MSYS="${MSYS:+$MSYS }winsymlinks:nativestrict"
+  export MSYS2_ARG_CONV_EXCL='*'
+fi
+
+# Copy a directory tree. Prefer Node fs.cpSync(verbatimSymlinks) on Windows so
+# pnpm links are recreated as real symlinks without following cycles.
+copy_tree() {
+  local src_dir="$1"
+  local dest_dir="$2"
+  mkdir -p "$(dirname "$dest_dir")"
+  if [[ "$is_windows" -eq 1 ]]; then
+    node -e '
+const fs = require("fs");
+const path = require("path");
+const src = process.argv[1];
+const dest = process.argv[2];
+fs.cpSync(src, dest, { recursive: true, verbatimSymlinks: true, force: true });
+' "$src_dir" "$dest_dir"
+  else
+    cp -a "$src_dir" "$dest_dir"
+  fi
+}
+
+# Copy contents of src_dir INTO an existing/new dest_dir (like tar pipe of ".")
+copy_tree_contents() {
   local src_dir="$1"
   local dest_dir="$2"
   mkdir -p "$dest_dir"
   if [[ "$is_windows" -eq 1 ]]; then
-    (cd "$src_dir" && tar cfh - .) | (cd "$dest_dir" && tar xf -)
+    # Copy into dest: node cpSync of src to dest replaces dest as the folder itself,
+    # which is what we want when dest should become a clone of src.
+    rm -rf "$dest_dir"
+    node -e '
+const fs = require("fs");
+fs.cpSync(process.argv[1], process.argv[2], { recursive: true, verbatimSymlinks: true, force: true });
+' "$src_dir" "$dest_dir"
   else
+    mkdir -p "$dest_dir"
     (cd "$src_dir" && tar cf - .) | (cd "$dest_dir" && tar xf -)
   fi
 }
@@ -44,8 +78,8 @@ tar_copy_modules() {
 rm -rf "$DEST"
 mkdir -p "$DEST"
 
-echo "[stage] copying repo (excluding harness node_modules first)..."
-[[ "$is_windows" -eq 1 ]] && echo "[stage] Windows detected — dereferencing symlinks when copying node_modules"
+echo "[stage] copying repo (excluding harness / .runtime)..."
+[[ "$is_windows" -eq 1 ]] && echo "[stage] Windows — preserving pnpm symlinks via Node fs.cpSync (no dereference)"
 for f in "$SRC_REPO"/* "$SRC_REPO"/.[!.]*; do
   base=$(basename "$f")
   [[ "$base" == "." || "$base" == ".." ]] && continue
@@ -53,24 +87,17 @@ for f in "$SRC_REPO"/* "$SRC_REPO"/.[!.]*; do
     continue
   fi
   if [[ -d "$f" ]]; then
-    if [[ "$is_windows" -eq 1 ]]; then
-      tar_copy_modules "$f" "$DEST/$base"
-    else
-      cp -a "$f" "$DEST/$base"
-    fi
+    copy_tree "$f" "$DEST/$base"
   elif [[ -f "$f" ]]; then
     cp -a "$f" "$DEST/$base"
   fi
 done
 
 mkdir -p "$DEST/upstream"
-echo "[stage] copying deepseek-harness (skip root node_modules initially)..."
-# Exclude EVERY node_modules tree here; nested package links are copied later via tar_copy_modules
-# (with -h on Windows). A bare --exclude=./node_modules only skips the harness root and still
-# ships package-level symlink farms that break Windows tar extract.
-_harness_tar_flags=(cf -)
-[[ "$is_windows" -eq 1 ]] && _harness_tar_flags=(cfh -)
-(cd "$SRC_REPO/upstream/deepseek-harness" && tar "${_harness_tar_flags[@]}" \
+echo "[stage] copying deepseek-harness (exclude ALL node_modules)..."
+# Exclude every node_modules directory. Nested package farms are copied after
+# the root .pnpm store exists so Windows symlink creation can resolve targets.
+(cd "$SRC_REPO/upstream/deepseek-harness" && tar cf - \
   --exclude=node_modules \
   --exclude=./.git \
   --exclude=./coverage \
@@ -79,7 +106,7 @@ _harness_tar_flags=(cf -)
 
 if [[ -d "$SRC_REPO/upstream/deepseek-harness/node_modules" ]]; then
   echo "[stage] copying root node_modules (please wait)..."
-  tar_copy_modules \
+  copy_tree_contents \
     "$SRC_REPO/upstream/deepseek-harness/node_modules" \
     "$DEST/upstream/deepseek-harness/node_modules"
 else
@@ -96,26 +123,18 @@ while IFS= read -r -d '' d; do
   dest="$H/$rel"
   if [[ ! -d "$dest" ]]; then
     mkdir -p "$(dirname "$dest")"
-    tar_copy_modules "$d" "$dest"
+    copy_tree_contents "$d" "$dest"
   fi
 done
 
 mkdir -p "$DEST/vendor"
 if [[ -d "$VENDOR/dsh-openapi" ]]; then
   rm -rf "$DEST/vendor/dsh-openapi"
-  if [[ "$is_windows" -eq 1 ]]; then
-    tar_copy_modules "$VENDOR/dsh-openapi" "$DEST/vendor/dsh-openapi"
-  else
-    cp -a "$VENDOR/dsh-openapi" "$DEST/vendor/dsh-openapi"
-  fi
+  copy_tree "$VENDOR/dsh-openapi" "$DEST/vendor/dsh-openapi"
 fi
 if [[ -d "$VENDOR/dsh-our-free-model" ]]; then
   rm -rf "$DEST/vendor/dsh-our-free-model"
-  if [[ "$is_windows" -eq 1 ]]; then
-    tar_copy_modules "$VENDOR/dsh-our-free-model" "$DEST/vendor/dsh-our-free-model"
-  else
-    cp -a "$VENDOR/dsh-our-free-model" "$DEST/vendor/dsh-our-free-model"
-  fi
+  copy_tree "$VENDOR/dsh-our-free-model" "$DEST/vendor/dsh-our-free-model"
 fi
 
 # Optional seed (no credentials). Lab seed should stay private — omit by default in CI.
