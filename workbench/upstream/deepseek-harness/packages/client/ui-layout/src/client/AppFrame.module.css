@@ -138,10 +138,11 @@
   pointer-events: none;
 }
 
-/* Click-through by default (slot catalog contract). Interactive overlays
-   (project progress, discovery lab) set pointer-events:auto on their own root.
-   Blanket auto on every child previously let empty/abdicated wrappers eat the
-   whole frame — including after sidebar collapse. */
+/* Slot catalog: layer is click-through; each overlay child must receive hits.
+   Landing (fde-project-progress) and discovery lab live here. Setting children
+   to none made CTAs pass through to conversation.header (Session ZIP export).
+   Sidebar collapse click-steal is fixed in ui-sidebar (clipHost / fading /
+   contentWide), not by disabling overlay children. */
 .overlayLayer > * {
-  pointer-events: none;
+  pointer-events: auto;
 }
