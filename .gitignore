@@ -11,3 +11,4 @@ workbench-src/
 *.exe
 *.zip
 !package-lock.json
+.github/workflows/
