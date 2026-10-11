@@ -17,15 +17,15 @@
     "prepare:linux": "bash scripts/stage-workbench.sh linux && bash scripts/fetch-node.sh linux-x64 active",
     "prepare:win": "bash scripts/stage-workbench.sh win && bash scripts/fetch-node.sh win-x64 active",
     "prepare:mac": "bash scripts/stage-workbench.sh mac && bash scripts/fetch-node.sh darwin-arm64 active",
-    "dist:linux": "npm run prepare:linux && electron-builder --linux AppImage deb",
-    "dist:win": "npm run prepare:win && electron-builder --win nsis msi --x64",
-    "dist:mac": "npm run prepare:mac && electron-builder --mac dmg zip --x64 --arm64",
-    "dist:dir": "npm run prepare:linux && electron-builder --linux --dir",
+    "dist:linux": "npm run prepare:linux && electron-builder --linux AppImage deb --publish never",
+    "dist:win": "npm run prepare:win && electron-builder --win nsis msi --x64 --publish never",
+    "dist:mac": "npm run prepare:mac && electron-builder --mac dmg zip --x64 --arm64 --publish never",
+    "dist:dir": "npm run prepare:linux && electron-builder --linux --dir --publish never",
     "pack": "electron-builder --dir",
     "ci:fetch": "bash scripts/ci-fetch-workbench.sh",
     "ci:build-workbench": "bash scripts/ci-build-workbench.sh",
-    "dist:win:ci": "npm run prepare:win && electron-builder --win nsis msi --x64",
-    "dist:mac:ci": "npm run prepare:mac && electron-builder --mac dmg zip --arm64"
+    "dist:win:ci": "npm run prepare:win && electron-builder --win nsis msi --x64 --publish never",
+    "dist:mac:ci": "npm run prepare:mac && electron-builder --mac dmg zip --arm64 --publish never"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -134,7 +134,8 @@
     },
     "asar": true,
     "npmRebuild": false,
-    "forceCodeSigning": false
+    "forceCodeSigning": false,
+    "publish": null
   },
   "homepage": "https://github.com/losebird/fdex--workbench",
   "repository": {
