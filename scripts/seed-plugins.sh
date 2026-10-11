@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Seed vendor plugins into DSH_HOME (idempotent). Called from start / setup.
-# Equivalent of Electron fixupDshHome for dsh-our-free-model — no pnpm needed.
+# Equivalent of Electron fixupDshHome for vendor plugins (free-model + openapi) — no pnpm needed.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

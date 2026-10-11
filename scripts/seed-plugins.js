@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Seed dsh-our-free-model into DSH_HOME (same idea as Electron fixupDshHome).
+ * Seed vendor plugins into DSH_HOME (same idea as Electron fixupDshHome).
  * Idempotent — safe to run on every start. No pnpm required.
+ *
+ * Plugins: dsh-our-free-model, dsh-openapi
  *
  * Env:
  *   FDE_REPO_ROOT  workbench root (has vendor/ + upstream/)
@@ -19,7 +21,7 @@ if (!ROOT) {
 }
 
 const DSH_HOME = process.env.DSH_HOME || path.join(ROOT, '.runtime', 'dsh-home');
-const PLUGIN_NAME = 'dsh-our-free-model';
+const PLUGIN_NAMES = ['dsh-our-free-model', 'dsh-openapi'];
 const WEB_BUNDLES = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'];
 
 const PROFILE_PATCH_TEMPLATE = `# Your patch layer for this dsh profile, applied after every bundle layer:
@@ -78,20 +80,37 @@ function ensureSymlink(linkPath, target) {
   }
 }
 
-function main() {
-  const vendorPlugin = path.join(ROOT, 'vendor', PLUGIN_NAME);
+function seedPlugin(pluginName, pkg) {
+  const vendorPlugin = path.join(ROOT, 'vendor', pluginName);
   if (!fs.existsSync(path.join(vendorPlugin, 'package.json'))) {
     console.warn(`seed-plugins: skip — missing ${vendorPlugin}`);
-    return;
+    return false;
   }
 
-  fs.mkdirSync(DSH_HOME, { recursive: true });
-  const localPlugin = path.join(DSH_HOME, 'bundled-plugins', PLUGIN_NAME);
+  const localPlugin = path.join(DSH_HOME, 'bundled-plugins', pluginName);
   fs.mkdirSync(path.dirname(localPlugin), { recursive: true });
   if (!fs.existsSync(path.join(localPlugin, 'package.json'))) {
     copyDir(vendorPlugin, localPlugin);
-    console.log(`seed-plugins: copied ${PLUGIN_NAME} → ${localPlugin}`);
+    console.log(`seed-plugins: copied ${pluginName} → ${localPlugin}`);
   }
+
+  pkg.dependencies = pkg.dependencies || {};
+  pkg.dependencies[pluginName] = `link:${localPlugin}`;
+  if (!pkg.dsh) pkg.dsh = { profile: { bundles: [] } };
+  if (!pkg.dsh.profile) pkg.dsh.profile = { bundles: [] };
+  if (!Array.isArray(pkg.dsh.profile.bundles)) pkg.dsh.profile.bundles = [];
+  if (!pkg.dsh.profile.bundles.includes(pluginName)) {
+    pkg.dsh.profile.bundles.push(pluginName);
+  }
+
+  const webDir = path.join(DSH_HOME, 'profiles', 'web');
+  ensureSymlink(path.join(webDir, 'node_modules', pluginName), localPlugin);
+  console.log(`seed-plugins: ${pluginName} on web profile (DSH_HOME=${DSH_HOME})`);
+  return true;
+}
+
+function main() {
+  fs.mkdirSync(DSH_HOME, { recursive: true });
 
   const webDir = path.join(DSH_HOME, 'profiles', 'web');
   const webPkgPath = path.join(webDir, 'package.json');
@@ -112,25 +131,23 @@ function main() {
   }
 
   pkg.dependencies = pkg.dependencies || {};
-  pkg.dependencies[PLUGIN_NAME] = `link:${localPlugin}`;
   if (!pkg.dsh) pkg.dsh = { profile: { bundles: [] } };
   if (!pkg.dsh.profile) pkg.dsh.profile = { bundles: [] };
   if (!Array.isArray(pkg.dsh.profile.bundles)) pkg.dsh.profile.bundles = [];
   for (const b of WEB_BUNDLES) {
     if (!pkg.dsh.profile.bundles.includes(b)) pkg.dsh.profile.bundles.push(b);
   }
-  if (!pkg.dsh.profile.bundles.includes(PLUGIN_NAME)) {
-    pkg.dsh.profile.bundles.push(PLUGIN_NAME);
+
+  for (const name of PLUGIN_NAMES) {
+    seedPlugin(name, pkg);
   }
+
   fs.writeFileSync(webPkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
   const patchPath = path.join(webDir, 'cordis.patch.yml');
   if (!fs.existsSync(patchPath)) fs.writeFileSync(patchPath, PROFILE_PATCH_TEMPLATE);
   const wsPath = path.join(webDir, 'pnpm-workspace.yaml');
   if (!fs.existsSync(wsPath)) fs.writeFileSync(wsPath, PROFILE_PNPM_WORKSPACE);
-
-  ensureSymlink(path.join(webDir, 'node_modules', PLUGIN_NAME), localPlugin);
-  console.log(`seed-plugins: ${PLUGIN_NAME} on web profile (DSH_HOME=${DSH_HOME})`);
 }
 
 main();
