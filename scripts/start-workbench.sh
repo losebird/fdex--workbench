@@ -51,6 +51,14 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 command -v node >/dev/null 2>&1 || { echo "需要 Node 24+（先装好再跑）" >&2; exit 1; }
 
+# 挂上 vendor 插件（与 Electron fixupDshHome 同逻辑；每次启动幂等，无需 pnpm）
+SEED="$(cd "$(dirname "$0")" && pwd)/seed-plugins.sh"
+if [[ -f "$SEED" ]]; then
+  FDE_REPO_ROOT="$ROOT" DSH_HOME="$DSH_HOME" bash "$SEED"
+else
+  echo "警告：找不到 seed-plugins.sh，跳过插件挂载" >&2
+fi
+
 # 释放旧 3080（尽量温和）
 if command -v lsof >/dev/null 2>&1; then
   old=$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)

@@ -30,6 +30,7 @@ npm run start:workbench   # 之后每次：起服务并打开浏览器
 默认地址：`http://127.0.0.1:3080`  
 改端口：`FDEX_PORT=3081 npm run start:workbench`  
 `DSH_HOME` 默认在 `workbench/.runtime/dsh-home`，**不会动你全局其它 dsh 安装**。
+`npm run start:workbench` 会自动把 `vendor/dsh-our-free-model` 挂进 `DSH_HOME`（幂等，无需 pnpm）。
 
 ### 网络 / 镜像说明
 
@@ -68,6 +69,7 @@ workbench/                 # 工作台源码（git 可见）
 scripts/
   setup-workbench.sh       # npm run setup:workbench（npx pnpm@11.7.0）
   start-workbench.sh       # npm run start:workbench（仅 node）
+  seed-plugins.sh         # 挂 vendor/dsh-our-free-model 到 DSH_HOME
 src/                       # Electron 壳（可选）
 ```
 

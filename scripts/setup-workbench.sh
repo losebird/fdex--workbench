@@ -58,6 +58,11 @@ run_pnpm install --registry="$REG"
 echo "==> pnpm run build"
 run_pnpm run build
 
+echo "==> seed plugins into DSH_HOME"
+export FDE_REPO_ROOT="$WB"
+export DSH_HOME="${DSH_HOME:-$WB/.runtime/dsh-home}"
+bash "$ROOT/scripts/seed-plugins.sh"
+
 echo ""
 echo "完成。之后只需 Node，启动："
 echo "  npm run start:workbench"

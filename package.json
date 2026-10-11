@@ -1,6 +1,6 @@
 {
   "name": "fde-x-workbench",
-  "productName": "FDE-X 交付工作台",
+  "productName": "FDE-X \u4ea4\u4ed8\u5de5\u4f5c\u53f0",
   "version": "0.1.0",
   "description": "FDE-X Delivery Workbench source + optional Electron packaging (DeepSeek Harness 0.1.1-rc.2 + FDE plugins)",
   "author": {
@@ -27,7 +27,8 @@
     "ci:fetch": "bash scripts/ci-fetch-workbench.sh",
     "ci:build-workbench": "bash scripts/ci-build-workbench.sh",
     "dist:win:ci": "npm run prepare:win && electron-builder --win nsis msi --x64 --publish never",
-    "dist:mac:ci": "npm run prepare:mac && electron-builder --mac dmg zip --arm64 --publish never"
+    "dist:mac:ci": "npm run prepare:mac && electron-builder --mac dmg zip --arm64 --publish never",
+    "seed:plugins": "bash scripts/seed-plugins.sh"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -36,7 +37,7 @@
   "build": {
     "appId": "com.fde-x.workbench",
     "productName": "FDE-X Workbench",
-    "copyright": "Copyright © Ace",
+    "copyright": "Copyright \u00a9 Ace",
     "directories": {
       "output": "dist",
       "buildResources": "build"
