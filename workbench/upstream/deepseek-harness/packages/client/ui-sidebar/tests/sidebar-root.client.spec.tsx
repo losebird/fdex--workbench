@@ -114,19 +114,24 @@ describe('SidebarRoot shell', () => {
     expect(b.toggleSidebar).not.toHaveBeenCalled()
   })
 
-  it('keeps the region mounted through collapse and expands on its request', () => {
+  it('drops interactive wide immediately on collapse and expands on request', () => {
     vi.useFakeTimers()
     const b = mountShell()
     b.rerender({ collapsed: true })
-    // Wide content survives the crossfade window, then settles into the rail.
-    expect(b.regionOwner().wide).toBe(true)
+    // Interactive seats go rail immediately (ProjectContextSidebar must not
+    // linger as an opacity-0 hit target over the center column).
+    expect(b.regionOwner().wide).toBe(false)
+    expect(b.footerActionOwner().wide).toBe(false)
+    expect(b.settingsOwner().wide).toBe(false)
     vi.advanceTimersByTime(200)
     b.rerender({})
     expect(b.regionOwner().wide).toBe(false)
-    expect(b.footerActionOwner().wide).toBe(false)
     expect(screen.getByTestId('region')).toBeTruthy()
-    b.regionOwner().expandSidebar()
+    // Expand toggle stays reachable during/after the fade.
+    fireEvent.click(screen.getByRole('button', { name: 'Open sidebar' }))
     expect(b.toggleSidebar).toHaveBeenCalledOnce()
+    b.regionOwner().expandSidebar()
+    expect(b.toggleSidebar).toHaveBeenCalledTimes(2)
   })
 
   it('renders statically collapsed on a cold start (no crossfade classes)', () => {

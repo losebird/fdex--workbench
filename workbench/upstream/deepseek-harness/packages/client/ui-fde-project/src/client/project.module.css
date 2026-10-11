@@ -100,6 +100,7 @@
 .artifactPreviewScrim:focus-visible { outline: 0; }
 
 .pageOverlay {
+  pointer-events: auto;
   --fde-stage-requirements: var(--dsw-alias-label-primary-bluish);
   --fde-stage-solution: color-mix(in srgb, var(--dsw-alias-state-business-primary) 62%, var(--dsw-alias-state-error-secondary));
   --fde-stage-development: var(--dsw-alias-state-business-primary);

@@ -28,6 +28,9 @@
   /* Paint containment keeps frozen-width fade content from leaving a hit
      target over the center column while the track slides closed. */
   contain: paint;
+  isolation: isolate;
+  position: relative;
+  z-index: 1;
   background: var(--dsw-specific-sidebar-fill);
   border-right: 1px solid var(--dsw-alias-border-l1);
 }
@@ -36,6 +39,14 @@
   /* Rail track only — never let overflow or stacking escape the 56px column. */
   overflow: hidden;
   max-width: 100%;
+  /* Below center so any escaped hit target loses to main content; the rail
+     itself still receives events inside its 56px box. */
+  z-index: 0;
+}
+
+.frame[data-sidebar-collapsed] .centerCol {
+  position: relative;
+  z-index: 1;
 }
 
 .sidebarCol:has([data-fde-project-context-sidebar]) {
@@ -127,6 +138,10 @@
   pointer-events: none;
 }
 
+/* Click-through by default (slot catalog contract). Interactive overlays
+   (project progress, discovery lab) set pointer-events:auto on their own root.
+   Blanket auto on every child previously let empty/abdicated wrappers eat the
+   whole frame — including after sidebar collapse. */
 .overlayLayer > * {
-  pointer-events: auto;
+  pointer-events: none;
 }

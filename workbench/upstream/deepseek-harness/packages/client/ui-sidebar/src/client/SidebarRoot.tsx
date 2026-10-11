@@ -8,14 +8,14 @@
  * settings control only fades. The workspace/session browsing region between
  * the brand row and the foot is the `sidebar.workspaces` registrant's,
  * and the foot holds `sidebar.settings` plus `sidebar.footer.action`; the shell
- * hands them the wide flag (plus an expand request callback for the browser).
+ * hands them contentWide=!collapsed (plus an expand request callback for the browser).
  *
  * The column also owns whether the scroll regions nested in it draw a
  * scrollbar at all: the shell tracks the pointer and rebinds ui-theme's
  * scrollbar indirection away while it is elsewhere, so a list the user is not
  * pointing at carries no bar.
  */
-import { useEffect, useRef, useState, type HTMLAttributes } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   FishLogo, IconPanelLeftOutline16, Tooltip,
@@ -26,8 +26,8 @@ import css from './SidebarRoot.module.css'
 /**
  * Wide-content unmount delay; matches the 150ms wide-content fade-out so the
  * rail can crossfade over the remaining AppFrame track slide (0.3s total).
- * Click-stealing during the fade is blocked by .fading CSS + inert, not by
- * stretching this timer.
+ * Click-stealing during the fade is blocked by .clipHost overflow + .fading
+ * pointer-events, and by dropping contentWide immediately (not this timer).
  */
 const COLLAPSE_SETTLE_MS = 150
 
@@ -59,11 +59,17 @@ export function SidebarRoot({
     const timer = window.setTimeout(() => { setSettled(true) }, COLLAPSE_SETTLE_MS)
     return () => { window.clearTimeout(timer) }
   }, [collapsed])
-  const wide = !collapsed || !settled
+  // layoutWide: keep frozen-width chrome for the 150ms fade (brand row).
+  // contentWide: interactive occupants (project context, settings, footer,
+  // workspace browser) drop to rail IMMEDIATELY on collapse — waiting for
+  // settle left a full-width ProjectContextSidebar (opacity 0 but still
+  // hit-testing through nested pointer-events:auto) over the center column.
+  const layoutWide = !collapsed || !settled
+  const contentWide = !collapsed
 
   // Freeze the content at its expanded width while it fades out (collapsed
-  // && wide): the sliding column then clips it instead of reflowing it. The
-  // rail layout (.collapsed styles) only applies once the fade settles.
+  // && layoutWide): the sliding column then clips it instead of reflowing it.
+  // The rail layout (.collapsed styles) only applies once the fade settles.
   const lastWideWidth = useRef(width)
   if (!collapsed) lastWideWidth.current = width
 
@@ -115,86 +121,89 @@ export function SidebarRoot({
     }
   }, [pointerInside])
 
-  const fading = collapsed && wide
+  const fading = collapsed && layoutWide
 
   return (
-    <div
-      ref={column}
-      className={clsx(
-        css.root, !wide && css.collapsed, !wide && everWide.current && css.railIn,
-        fading && css.fading, !pointerInside && css.quietBars,
-      )}
-      style={wide ? { width: collapsed ? lastWideWidth.current : width } : undefined}
-      // React 18: inert is not in the DOM typings yet; it disables focus + hits
-      // on the whole fading subtree (complements CSS pointer-events).
-      {...(fading ? { inert: '' } as HTMLAttributes<HTMLDivElement> : {})}
-      aria-hidden={fading || undefined}
-      onPointerEnter={() => {
-        cancelLinger()
-        setPointerInside(true)
-      }}
-      onPointerLeave={() => { armLinger() }}
-    >
-      <div className={css.logoRow}>
-        {/* Product identity is presentation only. Project/session actions live
-            in the workspace browser below. */}
-        {wide && (
-          <div className={clsx(css.brand, css.wide)}>
-            <span className={css.brandIdentity}>
-              <span className={css.brandMark}>
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
-              </span>
-              <span className={css.brandName}>
-                {renderSlot('sidebar.brand.name', {}, {
-                  fallback: (
-                    <>
-                      <span className={css.fallbackBrandName}>DSH Local Build</span>
-                      {process.env.DSH_CLIENT_COMMIT_HASH
-                        ? <span className={css.buildRevision}>{process.env.DSH_CLIENT_COMMIT_HASH}</span>
-                        : null}
-                    </>
-                  ),
-                })}
-              </span>
-            </span>
-          </div>
+    // clipHost is always the AppFrame track width: frozen-width fade content
+    // may paint wider for the slide, but hit-testing cannot escape this box.
+    <div className={css.clipHost}>
+      <div
+        ref={column}
+        className={clsx(
+          css.root, !layoutWide && css.collapsed, !layoutWide && everWide.current && css.railIn,
+          fading && css.fading, !pointerInside && css.quietBars,
         )}
-        {/* Rail resting state is the whale mark; hovering swaps in the panel
-            icon (the expand affordance, figma sidebar-hover flow). */}
-        <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500}>
-          <button
-            type="button"
-            className={clsx(css.iconButton, css.toggle)}
-            aria-label={collapsed ? t('toggle.open') : t('toggle.collapse')}
-            onClick={() => { toggleSidebar() }}
-          >
-            {!wide && (
-              <span className={css.railMark} aria-hidden="true">
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
+        style={layoutWide ? { width: collapsed ? lastWideWidth.current : width } : undefined}
+        // Do NOT put inert/aria-hidden on this root: either would disable the
+        // expand toggle. Hit-stealing is blocked by .fading * + .clipHost.
+        onPointerEnter={() => {
+          cancelLinger()
+          setPointerInside(true)
+        }}
+        onPointerLeave={() => { armLinger() }}
+      >
+        <div className={css.logoRow}>
+          {/* Product identity is presentation only. Project/session actions live
+              in the workspace browser below. */}
+          {layoutWide && (
+            <div className={clsx(css.brand, css.wide)}>
+              <span className={css.brandIdentity}>
+                <span className={css.brandMark}>
+                  {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
+                </span>
+                <span className={css.brandName}>
+                  {renderSlot('sidebar.brand.name', {}, {
+                    fallback: (
+                      <>
+                        <span className={css.fallbackBrandName}>DSH Local Build</span>
+                        {process.env.DSH_CLIENT_COMMIT_HASH
+                          ? <span className={css.buildRevision}>{process.env.DSH_CLIENT_COMMIT_HASH}</span>
+                          : null}
+                      </>
+                    ),
+                  })}
+                </span>
               </span>
-            )}
-            {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
-            <IconPanelLeftOutline16 className={css.panelIcon} size={wide ? 16 : 18} />
-          </button>
-        </Tooltip>
-      </div>
-
-      {/* The browsing region fills the column between the controls and the
-          foot in both states; its rail icon column rides the same slot. */}
-      <div className={css.regionArea}>
-        {renderSlot('sidebar.workspaces', {
-          wide,
-          expandSidebar: () => { if (collapsed) toggleSidebar() },
-        })}
-      </div>
-
-      {/* Footer actions stack above Settings in both sidebar widths. */}
-      <div className={css.footArea}>
-        <div className={css.footerActions}>
-          {renderSlot('sidebar.footer.action', { wide })}
+            </div>
+          )}
+          {/* Rail resting state is the whale mark; hovering swaps in the panel
+              icon (the expand affordance, figma sidebar-hover flow). Outside the
+              fading opacity target so expand stays reachable during the slide. */}
+          <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500}>
+            <button
+              type="button"
+              className={clsx(css.iconButton, css.toggle)}
+              aria-label={collapsed ? t('toggle.open') : t('toggle.collapse')}
+              onClick={() => { toggleSidebar() }}
+            >
+              {!layoutWide && (
+                <span className={css.railMark} aria-hidden="true">
+                  {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
+                </span>
+              )}
+              {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
+              <IconPanelLeftOutline16 className={css.panelIcon} size={layoutWide ? 16 : 18} />
+            </button>
+          </Tooltip>
         </div>
-        <div className={css.settingsArea}>
-          {renderSlot('sidebar.settings', { wide })}
+
+        {/* The browsing region fills the column between the controls and the
+            foot in both states; its rail icon column rides the same slot. */}
+        <div className={css.regionArea}>
+          {renderSlot('sidebar.workspaces', {
+            wide: contentWide,
+            expandSidebar: () => { if (collapsed) toggleSidebar() },
+          })}
+        </div>
+
+        {/* Footer actions stack above Settings in both sidebar widths. */}
+        <div className={css.footArea}>
+          <div className={css.footerActions}>
+            {renderSlot('sidebar.footer.action', { wide: contentWide })}
+          </div>
+          <div className={css.settingsArea}>
+            {renderSlot('sidebar.settings', { wide: contentWide })}
+          </div>
         </div>
       </div>
     </div>

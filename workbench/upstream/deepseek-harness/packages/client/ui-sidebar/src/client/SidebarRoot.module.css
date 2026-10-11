@@ -6,6 +6,18 @@
    (.collapsed) only applies after the fade settles, so nothing reflows
    mid-slide. */
 
+/* Always matches the AppFrame sidebar track. Frozen-width fade content may
+   be wider for the slide animation, but paint + hit-testing stay clipped
+   here so an opacity-0 ProjectContextSidebar cannot cover the center. */
+.clipHost {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+}
+
 .root {
   --dsh-sidebar-inline-padding: 14px;
   display: flex;
@@ -49,6 +61,7 @@
   max-width: 100%;
   overflow: hidden;
   box-sizing: border-box;
+  pointer-events: auto;
 }
 
 /* Scrollbars in the column are a pointer affordance: the shell adds this
@@ -80,7 +93,19 @@
   pointer-events: none !important;
 }
 
-.root.fading > * {
+/* Expand control must stay reachable during the fade (Ace: top-bar / rail
+   toggle also died because the whole fading tree ate hits). */
+.root.fading .toggle {
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Fade wide chrome only — keep .toggle visible/clickable so Ace can
+   re-expand while the track is still sliding. */
+.root.fading .brand,
+.root.fading .regionArea,
+.root.fading .footArea {
   opacity: 0;
   visibility: hidden;
   transition:
@@ -313,7 +338,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .wide,
-  .root.fading > *,
+  .root.fading .brand,
+  .root.fading .regionArea,
+  .root.fading .footArea,
   .railIn .iconButton,
   .railIn .footArea,
   .railIn .regionArea {
