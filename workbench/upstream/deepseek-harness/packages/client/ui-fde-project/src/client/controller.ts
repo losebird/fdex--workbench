@@ -1,0 +1,1632 @@
+/** Host-backed project snapshot controller shared by the four project views. */
+
+/** Exact Host route owned by `@deepseek-ai/dsh-fde-project`. */
+export const FDE_PROJECT_SNAPSHOT_PATH = '/api/fde-project/snapshot'
+/** Exact Host route for confirming one architecture revision. */
+export const FDE_ARCHITECTURE_CONFIRM_PATH = '/api/fde-project/architecture/confirm'
+/** Exact Host route for confirming one validation contract. */
+export const FDE_VALIDATION_PLAN_CONFIRM_PATH = '/api/fde-project/validation/confirm-plan'
+/** Exact Host route for manually accepting one required validation metric. */
+export const FDE_VALIDATION_METRIC_ACCEPT_PATH = '/api/fde-project/validation/accept-metric'
+/** Exact Host route for manually accepting one validation issue. */
+export const FDE_VALIDATION_ISSUE_WAIVE_PATH = '/api/fde-project/validation/waive-issue'
+/** Exact Host route for manually accepting one deployment-trial issue. */
+export const FDE_DEPLOYMENT_TRIAL_ISSUE_ACCEPT_PATH = '/api/fde-project/pilot/accept-issue'
+/** Exact Host route for confirming the current deployment-trial target and readiness. */
+export const FDE_DEPLOYMENT_TRIAL_READINESS_CONFIRM_PATH = '/api/fde-project/pilot/confirm-readiness'
+/** Exact Host route for recording the current acceptance and responsibility-transfer facts. */
+export const FDE_ACCEPTANCE_HANDOVER_DECISION_PATH = '/api/fde-project/handoff/record-decision'
+/** Exact Host route for approving one indexed evaluation report. */
+export const FDE_EVALUATION_BASELINE_PATH = '/api/fde-project/evaluation/baseline'
+/** Exact Host route for beginning one Agent-driven project start. */
+export const FDE_PROJECT_RUNTIME_START_PATH = '/api/fde-project/runtime/start'
+/** Exact Host route for beginning one Agent-driven project stop. */
+export const FDE_PROJECT_RUNTIME_STOP_PATH = '/api/fde-project/runtime/stop'
+/** Exact Host route for settling an operation whose Agent prompt was not queued. */
+export const FDE_PROJECT_RUNTIME_ABANDON_PATH = '/api/fde-project/runtime/abandon'
+/** Exact Host routes owned by the stage-four Semantica Provider. */
+export const FDE_SEMANTICA_ROUTE_PATH = '/api/fde-semantica/route'
+export const FDE_SEMANTICA_SOURCES_PATH = '/api/fde-semantica/sources'
+export const FDE_SEMANTICA_DEFINITION_PATH = '/api/fde-semantica/definition'
+export const FDE_SEMANTICA_CANDIDATES_PATH = '/api/fde-semantica/candidates'
+export const FDE_SEMANTICA_RUN_PATH = '/api/fde-semantica/run'
+export const FDE_SEMANTICA_DECISION_PATH = '/api/fde-semantica/decision'
+
+/** Architecture node styles accepted from the project artifact. */
+export type ArchitectureNodeKind = 'default' | 'entry' | 'core' | 'store' | 'external' | 'output'
+
+/** Browser wire value for one current project architecture. */
+export interface ProjectArchitecture {
+  readonly version: 1
+  readonly revision: number
+  readonly title: string
+  readonly summary?: string
+  readonly status: 'candidate' | 'pending-confirmation' | 'confirmed' | 'impacted' | 'superseded'
+  readonly updatedAt: string
+  readonly groups: readonly { readonly id: string; readonly label: string }[]
+  readonly nodes: readonly {
+    readonly id: string
+    readonly label: string
+    readonly kind: ArchitectureNodeKind
+    readonly note?: string
+    readonly group?: string
+  }[]
+  readonly edges: readonly {
+    readonly from: string
+    readonly to: string
+    readonly label?: string
+    readonly dashed?: boolean
+  }[]
+}
+
+/** Browser states for one project's explicit API documentation configuration. */
+export type ApiDocsSnapshot =
+  | { readonly status: 'unconfigured'; readonly message: string }
+  | { readonly status: 'invalid'; readonly message: string }
+  | {
+    readonly status: 'configured'
+    readonly docsUrl?: string
+    readonly openapiSource?: string
+    readonly baseUrl?: string
+    readonly allowedMethods: readonly string[]
+    readonly allowPrivateNetwork: boolean
+  }
+
+/** Browser wire value for one Workspace-scoped project runtime fact. */
+export interface ProjectRuntimeSnapshot {
+  readonly schemaVersion: 1
+  readonly revision: number
+  readonly status: 'stopped' | 'starting' | 'running' | 'stopping' | 'blocked'
+  readonly updatedAt: string
+  readonly action?: 'start' | 'stop'
+  readonly operationId?: string
+  readonly sessionId?: string
+  readonly message?: string
+  readonly previewUrl?: string
+  readonly docsUrl?: string
+  readonly openapiSource?: string
+  readonly baseUrl?: string
+  readonly terminalTitle?: string
+}
+
+/** Bounded browser summary of one persisted evaluation report. */
+export interface EvaluationReportSummary {
+  readonly id: string
+  readonly path: string
+  readonly updatedAt: string
+  readonly status: 'PASS' | 'WARN' | 'FAIL' | 'N/A' | 'UNKNOWN'
+  readonly passed: number
+  readonly failed: number
+  readonly errors: number
+  readonly total: number
+  readonly cases: readonly {
+    readonly name: string
+    readonly status: string
+    readonly failures: readonly string[]
+    readonly error?: string
+  }[]
+}
+
+/** Project-specific validation metric categories accepted by the Host contract. */
+export type ValidationMetricCategory = 'business' | 'functional' | 'data' | 'model' | 'performance' | 'security' | 'recovery' | 'agent'
+/** Evidence-backed validation result. */
+export type ValidationMetricStatus = 'PASS' | 'WARN' | 'FAIL' | 'NOT_RUN'
+
+/** Browser wire value for the validation contract, evidence, and fixed outputs. */
+export interface ValidationStageSnapshot {
+  readonly contract: {
+    readonly status: 'missing' | 'invalid' | 'ready'
+    readonly path: string
+    readonly digest?: string
+    readonly candidateId?: string
+    readonly candidateDescription?: string
+    readonly candidateSource?: string
+    readonly environment?: string
+    readonly datasets: readonly {
+      readonly id: string
+      readonly name: string
+      readonly version?: string
+      readonly source?: string
+      readonly hash?: string
+    }[]
+    readonly metrics: readonly {
+      readonly id: string
+      readonly name: string
+      readonly category: ValidationMetricCategory
+      readonly method: string
+      readonly threshold: string
+      readonly sources: readonly {
+        readonly path: string
+        readonly references: readonly string[]
+        readonly available: boolean
+        readonly digest?: string
+      }[]
+      readonly required: boolean
+      readonly status: ValidationMetricStatus
+      readonly value?: string
+      readonly evidence?: string
+      readonly evidenceAvailable: boolean
+      readonly waiverReason?: string
+      readonly manualAcceptance?: {
+        readonly reason: string
+        readonly acceptedAt: string
+      }
+      readonly note?: string
+    }[]
+    readonly issues: readonly {
+      readonly id: string
+      readonly title: string
+      readonly severity: 'critical' | 'high' | 'medium' | 'low'
+      readonly status: 'open' | 'resolved' | 'waived'
+      readonly evidence?: string
+      readonly evidenceAvailable: boolean
+      readonly resolution?: string
+      readonly waiverReason?: string
+      readonly waivedAt?: string
+    }[]
+    readonly message?: string
+  }
+  readonly artifacts: {
+    readonly root: string
+    readonly requiredCount: number
+    readonly presentCount: number
+    readonly items: readonly {
+      readonly id: 'validation-plan' | 'validation-report' | 'validation-baseline'
+      readonly title: string
+      readonly path: string
+      readonly status: 'missing' | 'present' | 'error'
+      readonly bytes?: number
+      readonly updatedAt?: string
+      readonly fileUrl?: string
+      readonly message?: string
+    }[]
+  }
+  readonly planReady: boolean
+  readonly planBlockers: readonly string[]
+  readonly planApproval: {
+    readonly status: 'unavailable' | 'pending' | 'confirmed' | 'stale'
+    readonly contractDigest?: string
+    readonly confirmedAt?: string
+    readonly message?: string
+  }
+  readonly requiredMetricCount: number
+  readonly satisfiedMetricCount: number
+  readonly gateReady: boolean
+  readonly blockers: readonly string[]
+}
+
+/** One fixed Markdown output from deployment trial or acceptance handover. */
+export interface DeliveryCloseoutArtifact {
+  readonly id: string
+  readonly title: string
+  readonly path: string
+  readonly status: 'missing' | 'present' | 'error'
+  readonly bytes?: number
+  readonly updatedAt?: string
+  readonly fileUrl?: string
+  readonly message?: string
+}
+
+/** Browser wire value for deployment-trial facts and completion readiness. */
+export interface DeploymentTrialStageSnapshot {
+  readonly contract: {
+    readonly status: 'missing' | 'invalid' | 'ready'
+    readonly path: string
+    readonly digest?: string
+    readonly candidateVersion?: string
+    readonly environment?: { readonly name: string; readonly summary: string; readonly authorized: boolean }
+    readonly deploymentStatus?: 'preparing' | 'deploying' | 'running' | 'blocked' | 'ready'
+    readonly evidence: Readonly<Record<'validationBaseline' | 'deployment' | 'health' | 'rollback' | 'trial', {
+      readonly path?: string
+      readonly available: boolean
+    }>>
+    readonly issues: readonly {
+      readonly id: string
+      readonly title: string
+      readonly severity: 'critical' | 'high' | 'medium' | 'low'
+      readonly status: 'open' | 'resolved' | 'accepted' | 'deferred'
+      readonly evidence?: string
+      readonly evidenceAvailable: boolean
+      readonly resolution?: string
+      readonly decisionReason?: string
+      readonly owner?: string
+    }[]
+    readonly message?: string
+  }
+  readonly artifacts: {
+    readonly root: string
+    readonly requiredCount: number
+    readonly presentCount: number
+    readonly items: readonly DeliveryCloseoutArtifact[]
+  }
+  readonly confirmationReady: boolean
+  readonly confirmationBlockers: readonly string[]
+  readonly gateReady: boolean
+  readonly blockers: readonly string[]
+}
+
+/** Browser wire value for final acceptance, handover, and project-completion readiness. */
+export interface AcceptanceHandoverStageSnapshot {
+  readonly contract: {
+    readonly status: 'missing' | 'invalid' | 'ready'
+    readonly path: string
+    readonly digest?: string
+    readonly finalVersion?: string
+    readonly deploymentTrialBaseline: { readonly path?: string; readonly available: boolean }
+    readonly acceptance?: {
+      readonly status: 'pending' | 'accepted' | 'conditionally-accepted' | 'returned' | 'terminated'
+      readonly summary: string
+      readonly evidence: readonly { readonly path?: string; readonly available: boolean }[]
+    }
+    readonly deliverables: readonly {
+      readonly id: string
+      readonly name: string
+      readonly location: string
+      readonly version?: string
+      readonly checksum?: string
+      readonly available: boolean
+      readonly locationType: 'project-file' | 'external'
+    }[]
+    readonly conditions: readonly {
+      readonly id: string
+      readonly title: string
+      readonly status: 'open' | 'resolved' | 'accepted'
+      readonly reason?: string
+      readonly owner?: string
+      readonly followUp?: string
+    }[]
+    readonly handover?: {
+      readonly trainingCompleted: boolean
+      readonly accessResponsibilityTransferred: boolean
+      readonly operationsResponsibilityTransferred: boolean
+      readonly evidence: readonly { readonly path?: string; readonly available: boolean }[]
+    }
+    readonly message?: string
+  }
+  readonly artifacts: {
+    readonly root: string
+    readonly requiredCount: number
+    readonly presentCount: number
+    readonly items: readonly DeliveryCloseoutArtifact[]
+  }
+  readonly gateReady: boolean
+  readonly blockers: readonly string[]
+}
+
+/** Editable FDE decision fields for one exact acceptance-handover contract. */
+export interface AcceptanceHandoverDecision {
+  readonly acceptance: {
+    readonly status: 'pending' | 'accepted' | 'conditionally-accepted' | 'returned' | 'terminated'
+    readonly summary: string
+    readonly evidence: readonly string[]
+  }
+  readonly deliverables: readonly { readonly id: string; readonly available: boolean }[]
+  readonly conditions: readonly {
+    readonly id: string
+    readonly status: 'open' | 'resolved' | 'accepted'
+    readonly reason?: string
+    readonly owner?: string
+    readonly followUp?: string
+  }[]
+  readonly handover: {
+    readonly trainingCompleted: boolean
+    readonly accessResponsibilityTransferred: boolean
+    readonly operationsResponsibilityTransferred: boolean
+    readonly evidence: readonly string[]
+  }
+}
+
+/** Authoritative post-discovery lifecycle stage identifiers. */
+export type V2LifecycleStageId = 'definition' | 'investigation' | 'design' | 'evaluation' | 'pilot' | 'production' | 'improvement'
+
+/** Browser-safe guided surface for one V2 stage. */
+export interface V2InvestigationSnapshot {
+  readonly systems: readonly {
+    readonly id: string
+    readonly label: string
+    readonly kind: 'data' | 'system' | 'external' | 'actor'
+    readonly status: 'confirmed' | 'conditional' | 'pending' | 'blocked'
+    readonly owner?: string
+    readonly note?: string
+  }[]
+  readonly connections: readonly {
+    readonly from: string
+    readonly to: string
+    readonly label?: string
+  }[]
+  readonly actionBoundaries: readonly {
+    readonly target: string
+    readonly read: 'allowed' | 'conditional' | 'pending' | 'denied' | 'not-applicable'
+    readonly suggest: 'allowed' | 'conditional' | 'pending' | 'denied' | 'not-applicable'
+    readonly draft: 'allowed' | 'conditional' | 'pending' | 'denied' | 'not-applicable'
+    readonly execute: 'allowed' | 'conditional' | 'pending' | 'denied' | 'not-applicable'
+  }[]
+  readonly dataFindings: readonly {
+    readonly label: string
+    readonly value: string
+    readonly status: 'confirmed' | 'warning' | 'pending' | 'blocked'
+  }[]
+  readonly governanceReviews: readonly {
+    readonly area: 'security' | 'privacy' | 'legal' | 'procurement' | 'finance' | 'business'
+    readonly status: 'confirmed' | 'conditional' | 'pending' | 'blocked'
+    readonly owner?: string
+    readonly note?: string
+  }[]
+}
+
+export interface V2KnowledgeGraphSnapshot {
+  readonly schemaVersion: 1
+  readonly provider: { readonly id: string; readonly version?: string }
+  readonly graphId: string
+  readonly revision: string
+  readonly ontologyVersion: string
+  readonly updatedAt: string
+  readonly nodes: readonly {
+    readonly id: string
+    readonly label: string
+    readonly type: string
+    readonly summary?: string
+    readonly communityId?: string
+    readonly confidence?: number
+    readonly validFrom?: string
+    readonly validUntil?: string
+    readonly sourceRefs: readonly string[]
+  }[]
+  readonly edges: readonly {
+    readonly id: string
+    readonly source: string
+    readonly target: string
+    readonly type: string
+    readonly label?: string
+    readonly weight: number
+    readonly confidence?: number
+    readonly validFrom?: string
+    readonly validUntil?: string
+    readonly sourceRefs: readonly string[]
+  }[]
+  readonly communities: readonly {
+    readonly id: string
+    readonly label: string
+    readonly level: number
+    readonly nodeIds: readonly string[]
+  }[]
+}
+
+export type DesignExecutionMechanism = 'manual' | 'rules' | 'software' | 'retrieval' | 'model' | 'agent' | 'hybrid'
+
+export interface SemanticDefinitionInput {
+  readonly version: string
+  readonly competencyQuestions: readonly {
+    readonly id: string
+    readonly text: string
+    readonly required: boolean
+    readonly query: {
+      readonly kind: 'lookup' | 'edge' | 'path'
+      readonly sourceType?: string
+      readonly relationshipType?: string
+      readonly targetType?: string
+      readonly maxDepth: number
+      readonly minAnswers: number
+    }
+  }[]
+  readonly classes: readonly {
+    readonly id: string
+    readonly label: string
+    readonly description?: string
+    readonly aliases: readonly string[]
+    readonly identityKeys: readonly string[]
+    readonly properties: readonly {
+      readonly id: string
+      readonly label: string
+      readonly dataType: 'string' | 'number' | 'boolean' | 'date' | 'datetime'
+      readonly required: boolean
+      readonly unique: boolean
+    }[]
+    readonly fieldMappings: readonly { readonly sourceField: string; readonly targetProperty: string }[]
+    readonly extractionPatterns: readonly string[]
+  }[]
+  readonly relationships: readonly {
+    readonly id: string
+    readonly label: string
+    readonly domain: string
+    readonly range: string
+    readonly description?: string
+    readonly cardinality: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many'
+    readonly extractionPatterns: readonly string[]
+  }[]
+  readonly provenanceRules: readonly { readonly id: string; readonly label: string; readonly description: string }[]
+  readonly temporalRules: readonly { readonly id: string; readonly label: string; readonly description: string }[]
+  readonly confidenceThreshold: number
+  readonly shaclSeverity: 'Violation' | 'Warning' | 'Info'
+}
+
+export interface V2SemanticWorkspaceSnapshot {
+  readonly status: 'missing' | 'ready' | 'invalid'
+  readonly path: '.fde/design/semantica/workspace.json'
+  readonly revision?: number
+  readonly updatedAt?: string
+  readonly evidenceDigest?: string
+  readonly provider: {
+    readonly id: 'semantica'
+    readonly expectedVersion: '0.6.7'
+    readonly status: 'unchecked' | 'ready' | 'unavailable' | 'invalid'
+    readonly version?: string
+    readonly configDigest?: string
+    readonly checkedAt?: string
+    readonly message?: string
+  }
+  readonly route?: {
+    readonly execution: {
+      readonly mechanism: DesignExecutionMechanism
+      readonly label: string
+      readonly rationale: string
+    }
+    readonly semantics: {
+      readonly mode: 'schema' | 'ontology'
+      readonly rationale: string
+    }
+    readonly conclusion: 'pending' | 'not_required' | 'validated' | 'validation_failed' | 'insufficient_evidence'
+  }
+  readonly sources: readonly {
+    readonly sourceId: string
+    readonly name: string
+    readonly relativePath: string
+    readonly digest: string
+    readonly bytes: number
+    readonly modifiedAt: string
+    readonly parseStatus: string
+    readonly permissionScope: string
+    readonly authority: 'primary' | 'supporting'
+  }[]
+  readonly definition: SemanticDefinitionInput & {
+    readonly status: 'missing' | 'draft' | 'review' | 'published' | 'stale'
+    readonly revision: number
+    readonly digest?: string
+    readonly updatedAt?: string
+  }
+  readonly candidates: {
+    readonly status: 'not_run' | 'ready' | 'failed' | 'stale'
+    readonly updatedAt?: string
+    readonly entities: readonly {
+      readonly id: string
+      readonly label: string
+      readonly type: string
+      readonly confidence: number
+      readonly sourceRefs: readonly string[]
+      readonly decision: 'pending' | 'accepted' | 'rejected'
+    }[]
+    readonly relationships: readonly {
+      readonly id: string
+      readonly source: string
+      readonly target: string
+      readonly type: string
+      readonly label?: string
+      readonly confidence: number
+      readonly sourceRefs: readonly string[]
+      readonly decision: 'pending' | 'accepted' | 'rejected'
+    }[]
+    readonly warnings: readonly string[]
+  }
+  readonly runs: readonly {
+    readonly id: string
+    readonly kind: 'extract' | 'propose-schema' | 'publish-schema' | 'build' | 'validate' | 'context' | 'slice'
+    readonly status: 'waiting' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'stale'
+    readonly startedAt: string
+    readonly completedAt?: string
+    readonly providerVersion?: string
+    readonly definitionVersion?: string
+    readonly definitionDigest?: string
+    readonly sourceDigests: readonly string[]
+    readonly summary?: string
+    readonly evidencePaths: readonly string[]
+    readonly diagnostics: readonly string[]
+  }[]
+  readonly validation?: {
+    readonly runId: string
+    readonly status: 'passed' | 'failed' | 'unavailable' | 'stale'
+    readonly checkedAt: string
+    readonly graphRevision: string
+    readonly definitionDigest: string
+    readonly structuralValid: boolean
+    readonly issues: readonly { readonly code: string; readonly severity: string; readonly message: string }[]
+    readonly questions: readonly {
+      readonly questionId: string
+      readonly status: 'passed' | 'failed' | 'unavailable'
+      readonly answerCount: number
+      readonly sourceRefs: readonly string[]
+      readonly message: string
+    }[]
+  }
+  readonly context?: {
+    readonly runId: string
+    readonly status: 'ready' | 'failed' | 'stale'
+    readonly createdAt: string
+    readonly query: string
+    readonly schemaVersion: string
+    readonly graphRevision: string
+    readonly entityCount: number
+    readonly relationshipCount: number
+    readonly sources: readonly string[]
+    readonly permissionScope: string
+  }
+  readonly slice?: {
+    readonly runId: string
+    readonly status: 'succeeded' | 'failed' | 'stale'
+    readonly createdAt: string
+    readonly task: string
+    readonly result: string
+    readonly contextRunId?: string
+    readonly evidenceRefs: readonly string[]
+    readonly diagnostics: readonly string[]
+  }
+  readonly decision?: {
+    readonly id: string
+    readonly outcome: 'go' | 'revise' | 'narrow' | 'stop'
+    readonly rationale: string
+    readonly decidedAt: string
+    readonly workspaceRevision: number
+    readonly evidenceDigest: string
+    readonly status: 'current' | 'stale'
+    readonly routeConclusion: 'pending' | 'not_required' | 'validated' | 'validation_failed' | 'insufficient_evidence'
+    readonly semanticMode: 'schema' | 'ontology'
+    readonly definitionDigest?: string
+    readonly graphRevision?: string
+    readonly sliceRunId?: string
+  }
+  readonly message?: string
+}
+
+export interface V2DesignSnapshot {
+  readonly execution: {
+    readonly status: 'undecided' | 'candidate' | 'selected'
+    readonly mechanism?: 'manual' | 'rules' | 'software' | 'retrieval' | 'model' | 'agent' | 'hybrid'
+    readonly label?: string
+    readonly rationale?: string
+  }
+  readonly semantics: {
+    readonly mode: 'undecided' | 'schema' | 'ontology'
+    readonly rationale?: string
+    readonly conclusion: 'pending' | 'not_required' | 'validated' | 'validation_failed' | 'insufficient_evidence'
+  }
+  readonly ontology: {
+    readonly status: 'not_applicable' | 'not_started' | 'draft' | 'review' | 'published' | 'stale'
+    readonly schemaVersion?: string
+    readonly classCount?: number
+    readonly relationshipTypeCount?: number
+  }
+  readonly graph: {
+    readonly path: '.fde/design/knowledge-graph.json'
+    readonly status: 'not_applicable' | 'missing' | 'ready' | 'invalid'
+    readonly buildStatus: 'not_applicable' | 'waiting' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'stale'
+    readonly snapshot?: V2KnowledgeGraphSnapshot
+    readonly message?: string
+  }
+  readonly workspace: V2SemanticWorkspaceSnapshot
+}
+
+/** Project development and test evidence reported by DSH for stage five. */
+export interface V2EvaluationSnapshot {
+  readonly status: 'missing' | 'ready' | 'invalid'
+  readonly message?: string
+  readonly candidate: {
+    readonly summary: string
+    readonly version: string
+    readonly sourceFiles: readonly V2EvaluationFile[]
+  }
+  readonly testing: {
+    readonly environment: string
+    readonly fingerprint?: string
+    readonly current: boolean
+    readonly metrics: readonly {
+      readonly id: string
+      readonly title: string
+      readonly kind: string
+      readonly required: boolean
+      readonly criterion: string
+      readonly sources: readonly V2EvaluationFile[]
+      readonly status: 'NOT_RUN' | 'RUNNING' | 'PASS' | 'WARN' | 'FAIL' | 'STALE'
+      readonly value: string
+      readonly evidence: readonly V2EvaluationFile[]
+    }[]
+  }
+  readonly reviewBlockers: readonly string[]
+}
+
+/** A bounded project-local reference checked by the Host without exposing file contents. */
+export interface V2EvaluationFile {
+  readonly path: string
+  readonly status: 'present' | 'missing' | 'error'
+  readonly sha256?: string
+  readonly message?: string
+}
+
+/** Version-bound delivery facts shared by the final three stage surfaces. */
+export interface V2DeliverySnapshot {
+  readonly status: 'missing' | 'ready' | 'invalid'
+  readonly message?: string
+  readonly version: string
+  readonly versionCurrent: boolean
+  readonly versionFiles: readonly V2DeliveryEvidence[]
+  readonly environment: { readonly kind: V2DeliveryScope; readonly label: string }
+  readonly semantic?: {
+    readonly mode: 'snapshot' | 'runtime'
+    readonly schemaVersion: string
+    readonly graphRevision: string
+    readonly summary: string
+    readonly evidence: readonly V2DeliveryEvidence[]
+  }
+  readonly items: readonly V2DeliveryItem[]
+  readonly reviewBlockers: readonly string[]
+}
+
+/** Evidence scope is independent of the current lifecycle stage. */
+export type V2DeliveryScope = 'local' | 'sandbox' | 'pilot' | 'production' | 'prior'
+/** Only Host inspection may promote declared results to effective results. */
+export type V2DeliveryStatus = 'unknown' | 'pending' | 'running' | 'passed' | 'failed' | 'blocked' | 'not_applicable' | 'stale'
+/** Project-local evidence pinned to the original file contents. */
+export interface V2DeliveryEvidence extends V2EvaluationFile {
+  readonly expectedSha256: string
+  readonly current: boolean
+}
+/** A sourced observation, criterion, delivery responsibility or change record. */
+export interface V2DeliveryItem {
+  readonly id: string
+  readonly category: string
+  readonly title: string
+  readonly declaredStatus: Exclude<V2DeliveryStatus, 'stale'>
+  readonly status: V2DeliveryStatus
+  readonly scope: V2DeliveryScope
+  readonly version: string
+  readonly summary: string
+  readonly owner?: string
+  readonly nextAction?: string
+  readonly observedAt?: string
+  readonly criterion?: string
+  readonly required: boolean
+  readonly evidence: readonly V2DeliveryEvidence[]
+}
+
+export interface V2StageSurfaceSnapshot {
+  readonly id: V2LifecycleStageId
+  readonly index: number
+  readonly title: string
+  readonly objective: string
+  readonly explanation: string
+  readonly statePath: string
+  readonly skill: string
+  readonly prompt: string
+  readonly stateStatus: 'missing' | 'ready' | 'invalid'
+  readonly status: 'working' | 'blocked' | 'review-ready'
+  readonly currentWorkId: string
+  readonly workItems: readonly {
+    readonly id: string
+    readonly title: string
+    readonly purpose: string
+    readonly status: 'complete' | 'current' | 'waiting' | 'blocked'
+  }[]
+  readonly blockers: readonly {
+    readonly id: string
+    readonly title: string
+    readonly severity: 'low' | 'medium' | 'high' | 'critical'
+    readonly status: 'open' | 'resolved'
+  }[]
+  readonly recommendation: 'pending' | 'go' | 'revise' | 'narrow' | 'stop'
+  readonly artifacts: readonly {
+    readonly id: string
+    readonly title: string
+    readonly path: string
+    readonly purpose: string
+    readonly required: boolean
+    readonly status: 'missing' | 'present' | 'error'
+    readonly bytes?: number
+    readonly updatedAt?: string
+    readonly message?: string
+  }[]
+  readonly requiredCount: number
+  readonly presentCount: number
+  readonly reviewReady: boolean
+  readonly reviewBlockers: readonly string[]
+  readonly investigation?: V2InvestigationSnapshot
+  readonly design?: V2DesignSnapshot
+  readonly evaluation?: V2EvaluationSnapshot
+  readonly delivery?: V2DeliverySnapshot
+  readonly message?: string
+}
+
+/** One project-level read model returned by the trusted Host route. */
+export interface ProjectSurfaceSnapshot {
+  readonly workspaceId: string
+  readonly title: string
+  readonly runtime: ProjectRuntimeSnapshot
+  readonly apiDocs: ApiDocsSnapshot
+  readonly architecture: ProjectArchitecture | null
+  readonly architectureError?: string
+  readonly evaluation: {
+    readonly casesCount: number
+    readonly reports: readonly EvaluationReportSummary[]
+    readonly baseline?: EvaluationReportSummary
+    readonly message?: string
+  }
+  readonly validation: ValidationStageSnapshot
+  readonly deploymentTrial: DeploymentTrialStageSnapshot
+  readonly acceptanceHandover: AcceptanceHandoverStageSnapshot
+  readonly v2Stages: Readonly<Record<V2LifecycleStageId, V2StageSurfaceSnapshot>>
+  readonly requirements: {
+    readonly root: string
+    readonly requiredCount: number
+    readonly presentCount: number
+    readonly artifacts: readonly {
+      readonly id: 'research-report' | 'confirmation-checklist' | 'requirement-baseline'
+      readonly title: string
+      readonly path: string
+      readonly status: 'missing' | 'present' | 'error'
+      readonly bytes?: number
+      readonly updatedAt?: string
+      readonly fileUrl?: string
+      readonly message?: string
+    }[]
+  }
+  readonly discovery: {
+    readonly question: string
+    readonly status: 'collecting' | 'understanding' | 'qualifying' | 'ready-for-review'
+    readonly currentWorkId: 'collect-originals' | 'restore-workflow' | 'qualify-value' | 'form-conclusion'
+    readonly workItems: readonly {
+      readonly id: 'collect-originals' | 'restore-workflow' | 'qualify-value' | 'form-conclusion'
+      readonly title: string
+      readonly purpose: string
+      readonly status: 'complete' | 'current' | 'waiting'
+    }[]
+    readonly workflows: {
+      readonly path: '.fde/discovery/workflows.json'
+      readonly status: 'missing' | 'ready' | 'invalid'
+      readonly selectedWorkflowId?: string
+      readonly items: readonly {
+        readonly id: string
+        readonly title: string
+        readonly actor: string
+        readonly trigger: string
+        readonly problem: string
+        readonly disposition: 'candidate' | 'selected' | 'deferred' | 'rejected'
+        readonly evidence: { readonly confirmed: number; readonly inferred: number; readonly unverified: number }
+        readonly evidenceRefs: readonly {
+          readonly id: string
+          readonly state: 'confirmed' | 'inferred' | 'unverified'
+          readonly kind: 'project-file' | 'conversation' | 'interview' | 'observation' | 'system' | 'policy' | 'external'
+          readonly ref: string
+          readonly summary: string
+        }[]
+      }[]
+      readonly message?: string
+    }
+    readonly route: {
+      readonly primaryMethod: { readonly skill: string; readonly layer: 'method'; readonly condition: string; readonly source: { readonly id: string; readonly version: string; readonly commit: string; readonly license: string; readonly artifact: string } }
+      readonly conditionalMethod: { readonly skill: string; readonly layer: 'method'; readonly condition: string; readonly source: { readonly id: string; readonly version: string; readonly commit: string; readonly license: string; readonly artifact: string } }
+      readonly engineering: readonly { readonly skill: string; readonly layer: 'engineering'; readonly condition: string; readonly source: { readonly id: string; readonly version: string; readonly commit: string; readonly license: string; readonly artifact: string } }[]
+    }
+    readonly artifacts: readonly {
+      readonly id: 'research-report' | 'confirmation-checklist' | 'requirement-baseline' | 'engagement-reframe'
+      readonly title: string
+      readonly path: string
+      readonly required: boolean
+      readonly purpose: string
+      readonly status: 'missing' | 'present' | 'error'
+      readonly structureState: 'missing' | 'invalid' | 'starter_valid' | 'complete_valid' | 'not_applicable'
+      readonly evidenceState: 'confirmed' | 'inferred' | 'unverified'
+      readonly version?: number
+      readonly sourceAdapter?: {
+        readonly id: string
+        readonly version: string
+        readonly commit: string
+        readonly license: string
+        readonly artifact: string
+      }
+      readonly evidenceRefs: readonly {
+        readonly id: string
+        readonly state: 'confirmed' | 'inferred' | 'unverified'
+        readonly kind: 'project-file' | 'conversation' | 'interview' | 'observation' | 'system' | 'policy' | 'external'
+        readonly ref: string
+        readonly summary: string
+      }[]
+      readonly bytes?: number
+      readonly updatedAt?: string
+      readonly fileUrl?: string
+      readonly message?: string
+    }[]
+    readonly requiredCount: number
+    readonly presentCount: number
+    readonly reviewReady: boolean
+    readonly blockers: readonly string[]
+  }
+  readonly solution?: {
+    readonly root: string
+    readonly requiredCount: number
+    readonly presentCount: number
+    readonly artifacts: readonly {
+      readonly id: 'project-prd' | 'solution-design' | 'development-plan' | 'acceptance-plan' | 'solution-baseline'
+      readonly title: string
+      readonly path: string
+      readonly status: 'missing' | 'present' | 'error'
+      readonly bytes?: number
+      readonly updatedAt?: string
+      readonly fileUrl?: string
+      readonly message?: string
+    }[]
+  }
+  readonly development?: {
+    readonly root: string
+    readonly core: {
+      readonly requiredCount: number
+      readonly presentCount: number
+      readonly artifacts: readonly DevelopmentArtifact[]
+    }
+    readonly features: readonly {
+      readonly id: string
+      readonly title: string
+      readonly directory: string
+      readonly status: string
+      readonly plannedStart?: string
+      readonly plannedEnd?: string
+      readonly milestone?: string
+      readonly blocker?: string
+      readonly taskTotal: number
+      readonly taskCompleted: number
+      readonly artifacts: readonly DevelopmentArtifact[]
+    }[]
+    readonly closure: {
+      readonly root: string
+      readonly requiredCount: number
+      readonly presentCount: number
+      readonly artifacts: readonly DevelopmentArtifact[]
+    }
+    readonly issues: readonly string[]
+  }
+}
+
+/** One browser-safe Markdown document indexed by the project Host. */
+export interface DevelopmentArtifact {
+  readonly id: string
+  readonly title: string
+  readonly path: string
+  readonly kind: 'core' | 'feature' | 'closure'
+  readonly status: 'missing' | 'present' | 'error'
+  readonly bytes?: number
+  readonly updatedAt?: string
+  readonly fileUrl?: string
+  readonly message?: string
+}
+
+/** Client loading state for one project snapshot. */
+export type ProjectSurfaceLoadState =
+  | { readonly status: 'loading' }
+  | { readonly status: 'ready'; readonly value: ProjectSurfaceSnapshot }
+  | { readonly status: 'error'; readonly message: string }
+
+/** Immutable Workspace-keyed project controller state. */
+export interface ProjectSurfaceControllerSnapshot {
+  readonly byWorkspace: Readonly<Record<string, ProjectSurfaceLoadState>>
+}
+
+interface SnapshotSuccess { readonly ok: true; readonly value: ProjectSurfaceSnapshot }
+interface SnapshotFailure { readonly ok: false; readonly error?: { readonly message?: string } }
+
+function parseSnapshot(value: unknown, workspaceId: string): ProjectSurfaceSnapshot {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('项目页面响应无效。')
+  const result = value as SnapshotSuccess | SnapshotFailure
+  if (!result.ok) throw new Error(result.error?.message ?? '项目页面读取失败。')
+  if (result.value.workspaceId !== workspaceId) throw new Error('项目页面响应与当前项目不一致。')
+  return result.value
+}
+
+/**
+ * Read one project snapshot from the same-origin Host route.
+ * @param workspaceId - exact registered project identity.
+ * @param fetchImpl - request implementation, replaceable by tests.
+ * @param signal - optional request cancellation.
+ * @returns the addressed project snapshot.
+ */
+export async function fetchProjectSurface(
+  workspaceId: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(FDE_PROJECT_SNAPSHOT_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('项目页面响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `项目页面读取失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+async function mutateStageFour(
+  path: string,
+  workspaceId: string,
+  body: Readonly<Record<string, unknown>>,
+  failureMessage: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(path, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, ...body }), ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error(`${failureMessage}响应无效。`) }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `${failureMessage}失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+/** Save the independent execution mechanism and semantic-foundation choices. */
+export async function configureDesignRoute(
+  workspaceId: string,
+  input: {
+    readonly execution: { readonly mechanism: DesignExecutionMechanism; readonly label: string; readonly rationale: string }
+    readonly semantics: { readonly mode: 'schema' | 'ontology'; readonly rationale: string }
+  },
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  return await mutateStageFour(FDE_SEMANTICA_ROUTE_PATH, workspaceId, input, '保存第四阶段路线', fetchImpl, signal)
+}
+
+/** Bind already-recognized project materials to the current semantic build revision. */
+export async function bindDesignSources(
+  workspaceId: string,
+  sourceIds: readonly string[],
+  permissionScope: string,
+  authority: 'primary' | 'supporting',
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  return await mutateStageFour(FDE_SEMANTICA_SOURCES_PATH, workspaceId, { sourceIds, permissionScope, authority }, '绑定项目材料', fetchImpl, signal)
+}
+
+/** Save one optimistic-lock protected ontology definition revision. */
+export async function saveDesignDefinition(
+  workspaceId: string,
+  expectedRevision: number,
+  definition: SemanticDefinitionInput,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  return await mutateStageFour(FDE_SEMANTICA_DEFINITION_PATH, workspaceId, { expectedRevision, definition }, '保存 Ontology 定义', fetchImpl, signal)
+}
+
+/** Apply explicit accept or reject decisions to extracted candidates. */
+export async function reviewDesignCandidates(
+  workspaceId: string,
+  decisions: readonly { readonly id: string; readonly decision: 'accepted' | 'rejected' }[],
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  return await mutateStageFour(FDE_SEMANTICA_CANDIDATES_PATH, workspaceId, { decisions }, '保存候选知识审核', fetchImpl, signal)
+}
+
+/** Run one explicit Semantica step without conflating build, validation, and use. */
+export async function runDesignSemantica(
+  workspaceId: string,
+  action: 'health' | 'extract' | 'propose-schema' | 'publish-schema' | 'build' | 'validate' | 'context',
+  input: Readonly<Record<string, unknown>> = {},
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  return await mutateStageFour(FDE_SEMANTICA_RUN_PATH, workspaceId, { action, input }, '运行 Semantica', fetchImpl, signal)
+}
+
+/** Persist one explicit FDE stage-four outcome against the exact current evidence revision. */
+export async function recordDesignDecision(
+  workspaceId: string,
+  expectedRevision: number,
+  outcome: 'go' | 'revise' | 'narrow' | 'stop',
+  rationale: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  return await mutateStageFour(FDE_SEMANTICA_DECISION_PATH, workspaceId, { expectedRevision, outcome, rationale }, '保存 FDE 决定', fetchImpl, signal)
+}
+
+/**
+ * Confirm one exact displayed architecture revision.
+ * @param workspaceId - exact registered project identity.
+ * @param revision - revision currently displayed to the user.
+ * @param fetchImpl - request implementation, replaceable by tests.
+ * @param signal - optional request cancellation.
+ * @returns the refreshed project snapshot.
+ */
+export async function confirmProjectArchitecture(
+  workspaceId: string,
+  revision: number,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(FDE_ARCHITECTURE_CONFIRM_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, revision }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('系统架构确认响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `系统架构确认失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+/** Confirm the exact validation contract currently displayed to the FDE. */
+export async function confirmValidationPlan(
+  workspaceId: string,
+  contractDigest: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(FDE_VALIDATION_PLAN_CONFIRM_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, contractDigest }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('评估方案确认响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `评估方案确认失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+/** Manually accept one unmet required metric for the exact displayed contract. */
+export async function acceptValidationMetric(
+  workspaceId: string,
+  contractDigest: string,
+  metricId: string,
+  reason: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(FDE_VALIDATION_METRIC_ACCEPT_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, contractDigest, metricId, reason }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('人工接受验证指标响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `人工接受验证指标失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+/** Manually accept one open validation issue for the exact displayed contract. */
+export async function waiveValidationIssue(
+  workspaceId: string,
+  contractDigest: string,
+  issueId: string,
+  reason: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(FDE_VALIDATION_ISSUE_WAIVE_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, contractDigest, issueId, reason }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('人工关闭验证问题响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `人工关闭验证问题失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+/** Manually accept one unresolved deployment-trial issue for the exact displayed contract. */
+export async function acceptDeploymentTrialIssue(
+  workspaceId: string,
+  contractDigest: string,
+  issueId: string,
+  reason: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(FDE_DEPLOYMENT_TRIAL_ISSUE_ACCEPT_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, contractDigest, issueId, reason }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('人工接受试运行问题响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `人工接受试运行问题失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+/** Confirm the exact displayed deployment-trial target environment and readiness conclusion. */
+export async function confirmDeploymentTrialReadiness(
+  workspaceId: string,
+  contractDigest: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(FDE_DEPLOYMENT_TRIAL_READINESS_CONFIRM_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, contractDigest }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('确认部署试运行结论响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `确认部署试运行结论失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+/** Record evidence-backed acceptance and handover facts for the exact displayed contract. */
+export async function recordAcceptanceHandoverDecision(
+  workspaceId: string,
+  contractDigest: string,
+  decision: AcceptanceHandoverDecision,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(FDE_ACCEPTANCE_HANDOVER_DECISION_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, contractDigest, decision }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('记录验收移交事实响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `记录验收移交事实失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+/**
+ * Approve one project report as the explicit evaluation baseline.
+ * @param workspaceId - exact registered project identity.
+ * @param reportPath - project-relative indexed report path.
+ * @param fetchImpl - request implementation, replaceable by tests.
+ * @param signal - optional request cancellation.
+ * @returns the refreshed project snapshot.
+ */
+export async function approveProjectEvaluationBaseline(
+  workspaceId: string,
+  reportPath: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(FDE_EVALUATION_BASELINE_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, reportPath }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('评估基线响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `评估基线设置失败（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+async function changeProjectRuntime(
+  path: string,
+  workspaceId: string,
+  body: Readonly<Record<string, unknown>>,
+  failureMessage: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  const response = await fetchImpl(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workspaceId, ...body }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  let payload: unknown
+  try { payload = await response.json() } catch { throw new Error('项目运行响应无效。') }
+  if (!response.ok) {
+    const failure = payload as SnapshotFailure
+    throw new Error(failure.error?.message ?? `${failureMessage}（HTTP ${String(response.status)}）。`)
+  }
+  return parseSnapshot(payload, workspaceId)
+}
+
+/** Begin one exact project start operation. */
+export async function startProjectRuntime(
+  workspaceId: string,
+  sessionId: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  return await changeProjectRuntime(
+    FDE_PROJECT_RUNTIME_START_PATH, workspaceId, { sessionId }, '项目启动请求失败', fetchImpl, signal,
+  )
+}
+
+/** Begin one exact project stop operation. */
+export async function stopProjectRuntime(
+  workspaceId: string,
+  sessionId: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  return await changeProjectRuntime(
+    FDE_PROJECT_RUNTIME_STOP_PATH, workspaceId, { sessionId }, '项目停止请求失败', fetchImpl, signal,
+  )
+}
+
+/** Settle an operation when its visible Agent prompt could not be queued. */
+export async function abandonProjectRuntime(
+  workspaceId: string,
+  operationId: string,
+  message: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProjectSurfaceSnapshot> {
+  return await changeProjectRuntime(
+    FDE_PROJECT_RUNTIME_ABANDON_PATH, workspaceId, { operationId, message }, '项目运行恢复失败', fetchImpl, signal,
+  )
+}
+
+/** Apply-scoped project snapshot object layer. */
+export class FdeProjectSurfaceController {
+  private snapshot: ProjectSurfaceControllerSnapshot = { byWorkspace: {} }
+  private readonly listeners = new Set<() => void>()
+  private readonly requests = new Map<string, AbortController>()
+  private disposed = false
+
+  /** Current immutable controller state. */
+  getSnapshot = (): ProjectSurfaceControllerSnapshot => this.snapshot
+
+  /** Subscribe to snapshot changes. */
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => { this.listeners.delete(listener) }
+  }
+
+  /**
+   * Load one project once.
+   * @param workspaceId - exact project identity.
+   */
+  load(workspaceId: string): void {
+    if (this.disposed) return
+    if (this.snapshot.byWorkspace[workspaceId] !== undefined) return
+    this.start(workspaceId)
+  }
+
+  /**
+   * Replace one project's snapshot with a fresh Host read.
+   * @param workspaceId - exact project identity.
+   */
+  refresh(workspaceId: string): void {
+    if (this.disposed) return
+    this.start(workspaceId)
+  }
+
+  /** Refresh one running operation without replacing the visible snapshot with a loading card. */
+  poll(workspaceId: string): void {
+    if (this.disposed || this.requests.has(workspaceId)) return
+    this.start(workspaceId, true)
+  }
+
+  /** Begin a project start and publish the returned starting record. */
+  async startRuntime(workspaceId: string, sessionId: string): Promise<ProjectRuntimeSnapshot> {
+    return await this.runtimeOperation(workspaceId, signal => startProjectRuntime(workspaceId, sessionId, fetch, signal))
+  }
+
+  /** Begin a project stop and publish the returned stopping record. */
+  async stopRuntime(workspaceId: string, sessionId: string): Promise<ProjectRuntimeSnapshot> {
+    return await this.runtimeOperation(workspaceId, signal => stopProjectRuntime(workspaceId, sessionId, fetch, signal))
+  }
+
+  /** Settle a runtime operation whose visible Agent prompt was not accepted. */
+  async abandonRuntime(workspaceId: string, operationId: string, message: string): Promise<ProjectRuntimeSnapshot> {
+    return await this.runtimeOperation(
+      workspaceId,
+      signal => abandonProjectRuntime(workspaceId, operationId, message, fetch, signal),
+    )
+  }
+
+  /**
+   * Confirm one exact architecture revision without hiding the current graph.
+   * @param workspaceId - exact project identity.
+   * @param revision - revision currently displayed.
+   */
+  async confirmArchitecture(workspaceId: string, revision: number): Promise<void> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await confirmProjectArchitecture(workspaceId, revision, fetch, controller.signal)
+      if (this.canPublish(workspaceId, controller)) {
+        this.publish(workspaceId, { status: 'ready', value })
+      }
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  /** Confirm one exact validation contract without hiding the current plan. */
+  async confirmValidationPlan(workspaceId: string, contractDigest: string): Promise<void> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await confirmValidationPlan(workspaceId, contractDigest, fetch, controller.signal)
+      if (this.canPublish(workspaceId, controller)) {
+        this.publish(workspaceId, { status: 'ready', value })
+      }
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  /** Accept one unmet required metric and publish the refreshed project snapshot. */
+  async acceptValidationMetric(
+    workspaceId: string,
+    contractDigest: string,
+    metricId: string,
+    reason: string,
+  ): Promise<void> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await acceptValidationMetric(workspaceId, contractDigest, metricId, reason, fetch, controller.signal)
+      if (this.canPublish(workspaceId, controller)) {
+        this.publish(workspaceId, { status: 'ready', value })
+      }
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  /** Accept one still-open validation issue and publish the refreshed project snapshot. */
+  async waiveValidationIssue(
+    workspaceId: string,
+    contractDigest: string,
+    issueId: string,
+    reason: string,
+  ): Promise<void> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await waiveValidationIssue(workspaceId, contractDigest, issueId, reason, fetch, controller.signal)
+      if (this.canPublish(workspaceId, controller)) {
+        this.publish(workspaceId, { status: 'ready', value })
+      }
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  /** Accept one unresolved deployment-trial issue and publish the refreshed project snapshot. */
+  async acceptDeploymentTrialIssue(
+    workspaceId: string,
+    contractDigest: string,
+    issueId: string,
+    reason: string,
+  ): Promise<void> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await acceptDeploymentTrialIssue(workspaceId, contractDigest, issueId, reason, fetch, controller.signal)
+      if (this.canPublish(workspaceId, controller)) {
+        this.publish(workspaceId, { status: 'ready', value })
+      }
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  /** Confirm the displayed deployment-trial target and readiness, then publish the refreshed snapshot. */
+  async confirmDeploymentTrialReadiness(workspaceId: string, contractDigest: string): Promise<void> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await confirmDeploymentTrialReadiness(workspaceId, contractDigest, fetch, controller.signal)
+      if (this.canPublish(workspaceId, controller)) {
+        this.publish(workspaceId, { status: 'ready', value })
+      }
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  /** Record acceptance and responsibility-transfer facts, then publish the refreshed snapshot. */
+  async recordAcceptanceHandoverDecision(
+    workspaceId: string,
+    contractDigest: string,
+    decision: AcceptanceHandoverDecision,
+  ): Promise<void> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await recordAcceptanceHandoverDecision(workspaceId, contractDigest, decision, fetch, controller.signal)
+      if (this.canPublish(workspaceId, controller)) {
+        this.publish(workspaceId, { status: 'ready', value })
+      }
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  /**
+   * Approve one indexed report and publish the resulting baseline snapshot.
+   * @param workspaceId - exact project identity.
+   * @param reportPath - project-relative indexed report path.
+   */
+  async approveEvaluationBaseline(workspaceId: string, reportPath: string): Promise<void> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await approveProjectEvaluationBaseline(workspaceId, reportPath, fetch, controller.signal)
+      if (this.canPublish(workspaceId, controller)) {
+        this.publish(workspaceId, { status: 'ready', value })
+      }
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  /** Save the fourth-stage route and publish the returned project snapshot. */
+  async configureDesignRoute(
+    workspaceId: string,
+    input: Parameters<typeof configureDesignRoute>[1],
+  ): Promise<void> {
+    await this.designOperation(workspaceId, signal => configureDesignRoute(workspaceId, input, fetch, signal))
+  }
+
+  /** Replace the exact set of project materials bound to the ontology loop. */
+  async bindDesignSources(
+    workspaceId: string,
+    sourceIds: readonly string[],
+    permissionScope: string,
+    authority: 'primary' | 'supporting',
+  ): Promise<void> {
+    await this.designOperation(workspaceId, signal => bindDesignSources(workspaceId, sourceIds, permissionScope, authority, fetch, signal))
+  }
+
+  /** Save one versioned ontology definition. */
+  async saveDesignDefinition(workspaceId: string, expectedRevision: number, definition: SemanticDefinitionInput): Promise<void> {
+    await this.designOperation(workspaceId, signal => saveDesignDefinition(workspaceId, expectedRevision, definition, fetch, signal))
+  }
+
+  /** Persist explicit candidate review decisions. */
+  async reviewDesignCandidates(
+    workspaceId: string,
+    decisions: readonly { readonly id: string; readonly decision: 'accepted' | 'rejected' }[],
+  ): Promise<void> {
+    await this.designOperation(workspaceId, signal => reviewDesignCandidates(workspaceId, decisions, fetch, signal))
+  }
+
+  /** Run one Semantica operation and keep the current workbench visible. */
+  async runDesignSemantica(
+    workspaceId: string,
+    action: Parameters<typeof runDesignSemantica>[1],
+    input: Readonly<Record<string, unknown>> = {},
+  ): Promise<void> {
+    await this.designOperation(workspaceId, signal => runDesignSemantica(workspaceId, action, input, fetch, signal))
+  }
+
+  /** Save one version-bound FDE outcome without advancing the project implicitly. */
+  async recordDesignDecision(
+    workspaceId: string,
+    expectedRevision: number,
+    outcome: 'go' | 'revise' | 'narrow' | 'stop',
+    rationale: string,
+  ): Promise<void> {
+    await this.designOperation(
+      workspaceId,
+      signal => recordDesignDecision(workspaceId, expectedRevision, outcome, rationale, fetch, signal),
+    )
+  }
+
+  /** Cancel pending reads and release subscribers. */
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    for (const request of this.requests.values()) request.abort()
+    this.requests.clear()
+    this.listeners.clear()
+  }
+
+  private async runtimeOperation(
+    workspaceId: string,
+    operation: (signal: AbortSignal) => Promise<ProjectSurfaceSnapshot>,
+  ): Promise<ProjectRuntimeSnapshot> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await operation(controller.signal)
+      if (!this.canPublish(workspaceId, controller)) throw new Error('项目运行操作已被新的请求替代。')
+      this.publish(workspaceId, { status: 'ready', value })
+      return value.runtime
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  private async designOperation(
+    workspaceId: string,
+    operation: (signal: AbortSignal) => Promise<ProjectSurfaceSnapshot>,
+  ): Promise<void> {
+    if (this.disposed) throw new Error('项目页面已关闭。')
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    try {
+      const value = await operation(controller.signal)
+      if (!this.canPublish(workspaceId, controller)) throw new Error('第四阶段操作已被新的请求替代。')
+      this.publish(workspaceId, { status: 'ready', value })
+    } finally {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    }
+  }
+
+  private start(workspaceId: string, preserve = false): void {
+    this.requests.get(workspaceId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(workspaceId, controller)
+    if (!preserve) this.publish(workspaceId, { status: 'loading' })
+    void fetchProjectSurface(workspaceId, fetch, controller.signal).then(
+      (value) => {
+        if (this.canPublish(workspaceId, controller)) this.publish(workspaceId, { status: 'ready', value })
+      },
+      (error: unknown) => {
+        if (!this.disposed && !controller.signal.aborted && this.requests.get(workspaceId) === controller) {
+          this.publish(workspaceId, { status: 'error', message: error instanceof Error ? error.message : String(error) })
+        }
+      },
+    ).finally(() => {
+      if (this.requests.get(workspaceId) === controller) this.requests.delete(workspaceId)
+    })
+  }
+
+  private canPublish(workspaceId: string, controller: AbortController): boolean {
+    return !this.disposed && this.requests.get(workspaceId) === controller
+  }
+
+  private publish(workspaceId: string, state: ProjectSurfaceLoadState): void {
+    this.snapshot = { byWorkspace: { ...this.snapshot.byWorkspace, [workspaceId]: state } }
+    for (const listener of this.listeners) listener()
+  }
+}

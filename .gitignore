@@ -12,3 +12,8 @@ workbench-src/
 *.zip
 !package-lock.json
 .github/workflows/
+# Local runtime after Ace builds workbench
+workbench/.runtime/
+workbench/**/node_modules/
+workbench/**/lib/
+workbench/**/dist/

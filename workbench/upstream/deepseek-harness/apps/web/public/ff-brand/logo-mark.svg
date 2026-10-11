@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="FDE-X mark">
+  <rect width="128" height="128" rx="28" fill="#111111"/>
+  <path d="M36 36h28M36 64h20M36 36v56" stroke="#ffffff" stroke-width="8" stroke-linecap="square" fill="none"/>
+  <path d="M74 40l30 48M104 40L74 88" stroke="#ffffff" stroke-width="8" stroke-linecap="square"/>
+</svg>

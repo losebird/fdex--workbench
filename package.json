@@ -2,7 +2,7 @@
   "name": "fde-x-workbench",
   "productName": "FDE-X 交付工作台",
   "version": "0.1.0",
-  "description": "FDE-X Delivery Workbench desktop app (DeepSeek Harness 0.1.1-rc.2 + FDE plugins)",
+  "description": "FDE-X Delivery Workbench source + optional Electron packaging (DeepSeek Harness 0.1.1-rc.2 + FDE plugins)",
   "author": {
     "name": "Ace",
     "email": "ace@fde-x.local"
@@ -11,6 +11,8 @@
   "private": true,
   "main": "src/main.js",
   "scripts": {
+    "setup:workbench": "bash scripts/setup-workbench.sh",
+    "start:workbench": "bash scripts/start-workbench.sh",
     "start": "electron .",
     "stage": "bash scripts/stage-workbench.sh",
     "fetch-node": "bash scripts/fetch-node.sh",

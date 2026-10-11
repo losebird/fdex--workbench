@@ -1,0 +1,130 @@
+/**
+ * Request trust fence for the plugin's HTTP surface.
+ *
+ * The plugin registers a prefix *longer* than the kernel's `/api`, and webServer
+ * dispatch is longest-prefix-wins — so these routes run before the connection
+ * service's own admission check and would otherwise answer any loopback caller.
+ * That was measured and documented as an open boundary; this module closes it.
+ *
+ * Two layers, tried in order:
+ *
+ * 1. the composition's own `connection` service when present — the exact
+ *    admission decision the kernel applies to its `/api` routes (trust fence
+ *    plus browser-auth cookie), so the plugin is never weaker than the app;
+ * 2. a structural replica of that fence for compositions without the service:
+ *    loopback host only, no cross-site fetches, and an `Origin`/`Referer` that
+ *    matches the `Host` authority whenever the client supplies one, with a
+ *    narrow exception for the desktop's dsh-app://app relay Referer.
+ *
+ * @module src/trust.js
+ */
+
+/** Hostnames a same-machine caller can legitimately use. */
+const LOOPBACK_NAMES = new Set(['127.0.0.1', '[::1]', '::1', 'localhost'])
+
+/**
+ * Is this address one a same-machine caller can reach — i.e. may the forward
+ * listener bind it? The lanes are keyed to this machine's egress and priced
+ * against whoever shares it, so binding a routable interface would hand the
+ * quota to the whole subnet on the strength of a string in a settings file.
+ */
+export function isLoopbackHost(value) {
+  const authority = authorityOf(String(value ?? ''), 'http')
+  return authority !== null && LOOPBACK_NAMES.has(authority.hostname)
+}
+
+/**
+ * Decide one request. Returns an HTTP status to reject with, or `undefined` to
+ * let the handler run.
+ *
+ * @param {import('node:http').IncomingMessage} req
+ * @param {object|undefined} connection - the harness `connection` service, when the composition mounts one
+ * @param {(decision: {status: number, source: string, reason: string}) => void} [onRejection]
+ *   fixed diagnostic fields only; never request headers or error text
+ * @returns {number|undefined}
+ */
+export function rejectionFor(req, connection, onRejection) {
+  let decision
+  try {
+    const admit = connection?.admit
+    if (typeof admit === 'function') {
+      const admission = admit.call(connection, req)
+      const status = admission && typeof admission === 'object' ? admission.rejection : undefined
+      if (status === undefined) return undefined
+      decision = { status, source: 'connection', reason: 'host-rejected' }
+    }
+  } catch {
+    // Never bypass browser authentication when a mounted Host service fails.
+    decision = { status: 503, source: 'connection', reason: 'admission-error' }
+  }
+  if (decision === undefined) {
+    const reason = structuralReason(req)
+    if (reason === undefined) return undefined
+    decision = { status: 403, source: 'structural', reason }
+  }
+  try {
+    onRejection?.(decision)
+  } catch {
+    // Diagnostics are observational; a logger cannot change the HTTP decision.
+  }
+  return decision.status
+}
+
+/**
+ * The replica fence. Same shape as the kernel's `isTrustedApiRequest`: DNS
+ * rebinding defence via the Host header, cross-site fetch refusal, and an
+ * Origin/Referer authority match.
+ */
+export function structuralRejection(req) {
+  return structuralReason(req) === undefined ? undefined : 403
+}
+
+/** Return a fixed reason without exposing caller-supplied strings. */
+function structuralReason(req) {
+  const host = authorityOf(req.headers.host, 'http')
+  if (host === null || !LOOPBACK_NAMES.has(host.hostname)) return 'host-not-loopback'
+  const site = String(req.headers['sec-fetch-site'] ?? '').toLowerCase()
+  if (site === 'cross-site') return 'cross-site'
+  for (const header of ['origin', 'referer']) {
+    const raw = req.headers[header]
+    if (typeof raw !== 'string' || raw.trim() === '') continue
+    if (header === 'referer' && isDesktopRelayReferer(raw)) {
+      // Desktop forwardWebRequest strips both browser markers before relaying
+      // to HTTP loopback, but retains this Referer. It is not an Origin grant
+      // and never overrides a mounted Host's authentication decision.
+      if (req.headers.origin !== undefined || req.headers['sec-fetch-site'] !== undefined) return 'desktop-relay-markers'
+      continue
+    }
+    const authority = authorityOf(raw.trim())
+    if (authority === null) return `${header}-invalid`
+    // The web server speaks plain http on a loopback bind, so an Origin that
+    // claims https — or any other scheme — is not this page.
+    if (authority.scheme !== host.scheme || authority.hostname !== host.hostname || authority.port !== host.port) return `${header}-mismatch`
+  }
+  return undefined
+}
+
+/** Only the owned application page, never arbitrary custom-protocol pages. */
+function isDesktopRelayReferer(value) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'dsh-app:' && url.hostname === 'app' && url.port === ''
+      && url.username === '' && url.password === ''
+  } catch {
+    return false
+  }
+}
+
+/** Split a Host/Origin/Referer value into {scheme, hostname, port}, defaulting the port. */
+function authorityOf(value, defaultScheme) {
+  if (typeof value !== 'string' || value.trim() === '') return null
+  let url
+  try {
+    url = new URL(value.includes('://') ? value.trim() : `${defaultScheme ?? 'http'}://${value.trim()}`)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  const port = url.port === '' ? (url.protocol === 'https:' ? '443' : '80') : url.port
+  return { scheme: url.protocol.replace(':', ''), hostname: url.hostname.toLowerCase(), port }
+}

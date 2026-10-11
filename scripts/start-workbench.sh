@@ -18,8 +18,10 @@ resolve_root() {
   for cand in \
     "$here" \
     "$here/.." \
-    "$here/workbench-src" \
+    "$here/../workbench" \
+    "$here/workbench" \
     "$here/../workbench-src" \
+    "$here/workbench-src" \
     "$HOME/Documents/FDE资料/FDEDeliveryWorkbench" \
     "$HOME/Documents/FDE-X/FDEDeliveryWorkbench"
   do

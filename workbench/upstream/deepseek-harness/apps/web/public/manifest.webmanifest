@@ -1,0 +1,22 @@
+{
+  "id": "/",
+  "name": "FDE-X 交付工作台",
+  "short_name": "FDE-X",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "icons": [
+    {
+      "src": "/ff-brand/ff-logo.png",
+      "sizes": "300x300",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ff-brand/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
