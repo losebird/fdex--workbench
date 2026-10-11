@@ -32,6 +32,32 @@ npm run start:workbench   # 之后每次：起服务并打开浏览器
 `DSH_HOME` 默认在 `workbench/.runtime/dsh-home`，**不会动你全局其它 dsh 安装**。
 `npm run start:workbench` 会自动把 `vendor/dsh-our-free-model` 挂进 `DSH_HOME`（幂等，无需 pnpm）。
 
+**`dsh-openapi` 默认不自动挂载。** 它依赖 `@deepseek-ai/schemastery` 等 peer；直接拷进 `bundled-plugins` 会缺包、服务秒退。启动脚本若发现已挂过的坏 openapi，会自动卸掉以恢复启动。
+
+可选安装 OpenAPI（会从 harness 链上 peer）：
+
+```bash
+SEED_OPENAPI=1 npm run start:workbench
+# 或手动（在 harness 目录，保证解析到 peer）：
+cd workbench/upstream/deepseek-harness
+export DSH_HOME="$(cd ../.. && pwd)/.runtime/dsh-home"
+# 先链 peer 再 add，或用 SEED_OPENAPI=1
+node apps/cli/lib/bin.js plugin --profile web add "$(cd ../.. && pwd)/vendor/dsh-openapi"
+```
+
+若服务秒退且日志里有 `Cannot find package '@deepseek-ai/schemastery'`（旧版误 seed 了 openapi）：
+
+```bash
+cd fdex--workbench
+git pull
+DSH="$PWD/workbench/.runtime/dsh-home"
+rm -rf "$DSH/bundled-plugins/dsh-openapi"
+rm -f "$DSH/profiles/web/node_modules/dsh-openapi"
+# 从 profiles/web/package.json 的 dependencies / dsh.profile.bundles 里删掉 dsh-openapi
+# （或直接再跑一次 start：新脚本会自动 unseed）
+npm run start:workbench
+```
+
 ### 网络 / 镜像说明
 
 若出现连不上 `registry.npmjs.org`、下载 `@pnpm/exe` 失败：

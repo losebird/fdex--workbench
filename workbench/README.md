@@ -25,3 +25,10 @@ npm run start:workbench   # 起 dsh web 并打开浏览器
 - **start**：只调用 `node` 跑已 build 的 dsh 入口。
 - harness 是 pnpm monorepo，不能对它单独 `npm install` 代替 setup。
 - `@pnpm/exe` 下载失败时设 `NPM_CONFIG_REGISTRY=https://registry.npmmirror.com` 再跑 setup。
+
+## 插件
+
+- 启动自动挂载：`dsh-our-free-model`
+- `dsh-openapi` **默认不挂**（缺 `@deepseek-ai/schemastery` 会让服务秒退）。需要时：`SEED_OPENAPI=1 npm run start:workbench`（仓库根目录）
+- 若曾误挂过 openapi：再跑 `start:workbench` 会自动卸掉；或手动删 ` .runtime/dsh-home/bundled-plugins/dsh-openapi`
+

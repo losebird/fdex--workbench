@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Seed vendor plugins into DSH_HOME (idempotent). Called from start / setup.
-# Equivalent of Electron fixupDshHome for vendor plugins (free-model + openapi) — no pnpm needed.
+# Default: dsh-our-free-model only (matches Electron). OpenAPI is opt-in via
+# SEED_OPENAPI=1 (links peer deps from harness). Also removes a previously
+# seeded broken dsh-openapi so boot recovers after pull.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
