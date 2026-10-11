@@ -100,8 +100,15 @@ export function apply(ctx: ClientContext): void {
     ) ?? await ctx.workspaces.connectWorkspace(workspaceId as WorkspaceId)
   }
 
-  const activateProjectWorkbenchLayout = (): void => {
-    ctx.layout.openSidebar(396)
+  /**
+   * Project workbench chrome: close the details/files column and collapse the
+   * right tool panel. `enter` also opens the left shell sidebar to the project
+   * context width (396). `ensure` (StageWorkbench remounts) must NOT call
+   * openSidebar — reopening after the user toggled to the 56px rail left a
+   * hollow ~396px track and dead hit targets over the center column.
+   */
+  const activateProjectWorkbenchLayout = (mode: 'enter' | 'ensure' = 'ensure'): void => {
+    if (mode === 'enter') ctx.layout.openSidebar(396)
     ctx.layout.closeDetails()
     if (typeof document === 'undefined') return
     let attempts = 0
@@ -131,8 +138,9 @@ export function apply(ctx: ClientContext): void {
     page.close()
     // Opening the session can restore its last chat panel state. Apply the
     // workbench layout afterwards so chat's collapsed-left/open-files state
-    // never leaks into the project surface.
-    activateProjectWorkbenchLayout()
+    // never leaks into the project surface. Force the project sidebar only on
+    // this enter path — StageWorkbench remounts use ensure (no reopen).
+    activateProjectWorkbenchLayout('enter')
   }
 
   const pageInjected = (): ProjectPageInjected => ({

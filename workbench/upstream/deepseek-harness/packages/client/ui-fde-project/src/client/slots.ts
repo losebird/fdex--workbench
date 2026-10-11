@@ -203,7 +203,7 @@ export interface ProjectStageWorkbenchInjected {
     path: string
   } | undefined
   /** Restore the full project-workbench frame after leaving the Agent execution view. */
-  activateProjectWorkbenchLayout?: () => void
+  activateProjectWorkbenchLayout?: (mode?: 'enter' | 'ensure') => void
   viewProjectStage: (workspaceId: string, stage: FdeV2StageId) => void
   returnToCurrentStage: (workspaceId: string) => void
   toggleProjectSidebar: () => void
