@@ -2,7 +2,7 @@
 
 仓库：https://github.com/losebird/fdex--workbench
 
-- **`workbench/`** — 可运行的 FDEDeliveryWorkbench 源码（DeepSeek Harness **0.1.1-rc.2** + FDE 插件，含侧栏遮罩修复）
+- **`workbench/`** — 可运行的 FDEDeliveryWorkbench 源码（DeepSeek Harness **0.1.1-rc.2** + FDE 插件，含侧栏收起点击修复）
 - **`scripts/start-workbench.sh`** — 本机起 `dsh web` 并打开浏览器（无需 `.dmg`）
 - Electron 安装包相关文件仍保留，但日常请直接跑源码
 
@@ -31,6 +31,25 @@ npm run start:workbench   # 之后每次：起服务并打开浏览器
 改端口：`FDEX_PORT=3081 npm run start:workbench`  
 `DSH_HOME` 默认在 `workbench/.runtime/dsh-home`，**不会动你全局其它 dsh 安装**。
 `npm run start:workbench` 会自动把 `vendor/dsh-our-free-model` 挂进 `DSH_HOME`（幂等，无需 pnpm）。
+
+
+### 侧栏收起后点不了（必须 rebuild ui-sidebar）
+
+源码里的修复在 `packages/client/ui-sidebar`（以及 `ui-layout` 的 track 裁剪）。  
+**只 `git pull` 不够**——要重新 bundle 前端包，否则浏览器仍跑旧 CSS。
+
+```bash
+cd fdex--workbench
+git pull
+export NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+cd workbench/upstream/deepseek-harness
+npx --yes pnpm@11.7.0 --filter @deepseek-ai/dsh-client-ui-sidebar run bundle
+npx --yes pnpm@11.7.0 --filter @deepseek-ai/dsh-client-ui-layout run bundle
+cd ../../..
+npm run start:workbench
+```
+
+然后浏览器 **Cmd+Shift+R** 强制刷新。再试收起左侧栏，主区与顶栏展开按钮应可点。
 
 ### OpenAPI 工具：别再挂 `dsh-openapi`
 

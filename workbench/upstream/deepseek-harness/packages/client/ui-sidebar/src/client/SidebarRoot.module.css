@@ -42,9 +42,13 @@
 
 /* Rail geometry (figma rail spec): 36x36 control boxes centered in the 56px
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
-   the whale's box (24px to the 24-wide whale glyph itself). */
+   the whale's box (24px to the 24-wide whale glyph itself). Never leave a
+   wide invisible hit target after settle — stay inside the 56px track. */
 .root.collapsed {
   padding: 18px 10px 6px;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* Scrollbars in the column are a pointer affordance: the shell adds this
@@ -60,16 +64,28 @@
   --dsh-scrollbar-thumb-hover: transparent;
 }
 
-/* Collapse phase 1: the whole frozen-width content fades out in place over
-   150ms; at settle the children unmount/snap to the rail layout. */
-.fading,
-.fading > * {
-  pointer-events: none;
+/* Collapse phase 1: frozen-width content fades out in place over 150ms while
+   the AppFrame track (0.3s) slides closed. Descendants often set
+   pointer-events:auto (default), which would re-enable hits under a bare
+   parent none — so every node under .fading is forced off. visibility flips
+   at fade end so the transparent tree cannot keep a hit target. */
+.root.fading {
+  pointer-events: none !important;
+  /* Clip any sticky/abs children to this box; the column also clips. */
+  overflow: hidden;
 }
 
-.fading > * {
+.root.fading,
+.root.fading * {
+  pointer-events: none !important;
+}
+
+.root.fading > * {
   opacity: 0;
-  transition: opacity 150ms var(--ds-ease-in-out);
+  visibility: hidden;
+  transition:
+    opacity 150ms var(--ds-ease-in-out),
+    visibility 0s linear 150ms;
 }
 
 /* Wide-only content fades back in on expand remount. */
@@ -297,11 +313,12 @@
 
 @media (prefers-reduced-motion: reduce) {
   .wide,
-  .fading > *,
+  .root.fading > *,
   .railIn .iconButton,
   .railIn .footArea,
   .railIn .regionArea {
     transition: none;
     animation: none;
+    visibility: visible;
   }
 }

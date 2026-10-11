@@ -25,8 +25,17 @@
 .sidebarCol {
   min-width: 0;
   overflow: hidden;
+  /* Paint containment keeps frozen-width fade content from leaving a hit
+     target over the center column while the track slides closed. */
+  contain: paint;
   background: var(--dsw-specific-sidebar-fill);
   border-right: 1px solid var(--dsw-alias-border-l1);
+}
+
+.frame[data-sidebar-collapsed] .sidebarCol {
+  /* Rail track only — never let overflow or stacking escape the 56px column. */
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .sidebarCol:has([data-fde-project-context-sidebar]) {

@@ -1,6 +1,6 @@
 # FDE-X 交付工作台（源码）
 
-DeepSeek Harness **0.1.1-rc.2** + FDE 插件。侧栏收起遮罩已修（`.fading { pointer-events: none }`）。
+DeepSeek Harness **0.1.1-rc.2** + FDE 插件。侧栏收起点击已加强修复（`.fading` 全树 `pointer-events: none !important` + `visibility`/`inert`，collapsed `overflow:hidden`，AppFrame `contain: paint`）。**pull 后必须 rebuild ui-sidebar + ui-layout**。
 
 ## 本机跑起来
 
@@ -32,3 +32,16 @@ npm run start:workbench   # 起 dsh web 并打开浏览器
 - **不要**再挂 `dsh-openapi`：FDE 的 `fde-project` 已提供 OpenAPI 工具（`openapi_list` 等）。外挂会重复注册并导致启动失败（`tool "openapi_list" is already registered`）。脚本默认会卸掉已挂过的 `dsh-openapi`。
 - 高级强制挂载（一般不要）：`SEED_OPENAPI=1 npm run start:workbench`
 
+## 侧栏收起后点不了
+
+```bash
+# 在仓库根：
+git pull
+export NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+cd workbench/upstream/deepseek-harness
+npx --yes pnpm@11.7.0 --filter @deepseek-ai/dsh-client-ui-sidebar run bundle
+npx --yes pnpm@11.7.0 --filter @deepseek-ai/dsh-client-ui-layout run bundle
+cd ../../..
+npm run start:workbench
+# 浏览器 Cmd+Shift+R
+```

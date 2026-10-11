@@ -15,7 +15,7 @@
  * scrollbar indirection away while it is elsewhere, so a list the user is not
  * pointing at carries no bar.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type HTMLAttributes } from 'react'
 import clsx from 'clsx'
 import {
   FishLogo, IconPanelLeftOutline16, Tooltip,
@@ -23,7 +23,12 @@ import {
 import type { SidebarRootComponentProps } from './contract/slots.ts'
 import css from './SidebarRoot.module.css'
 
-/** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
+/**
+ * Wide-content unmount delay; matches the 150ms wide-content fade-out so the
+ * rail can crossfade over the remaining AppFrame track slide (0.3s total).
+ * Click-stealing during the fade is blocked by .fading CSS + inert, not by
+ * stretching this timer.
+ */
 const COLLAPSE_SETTLE_MS = 150
 
 /**
@@ -110,14 +115,20 @@ export function SidebarRoot({
     }
   }, [pointerInside])
 
+  const fading = collapsed && wide
+
   return (
     <div
       ref={column}
       className={clsx(
         css.root, !wide && css.collapsed, !wide && everWide.current && css.railIn,
-        collapsed && wide && css.fading, !pointerInside && css.quietBars,
+        fading && css.fading, !pointerInside && css.quietBars,
       )}
       style={wide ? { width: collapsed ? lastWideWidth.current : width } : undefined}
+      // React 18: inert is not in the DOM typings yet; it disables focus + hits
+      // on the whole fading subtree (complements CSS pointer-events).
+      {...(fading ? { inert: '' } as HTMLAttributes<HTMLDivElement> : {})}
+      aria-hidden={fading || undefined}
       onPointerEnter={() => {
         cancelLinger()
         setPointerInside(true)
